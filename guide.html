@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex, nofollow">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>아티클 편집기 사용 안내</title>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+:root{
+  --ink:#1a1f26; --sub:#5b6572; --mute:#8a94a0; --line:#e4e8ed; --soft:#f5f7f9;
+  --accent:#1a1f26; --blue:#1a73e8; --warn:#9a3412; --warnbg:#fff7ed; --warnline:#fed7aa;
+  --bg:#f1f3f6; --card:#ffffff;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;word-break:keep-all;overflow-wrap:anywhere}
+.page{max-width:1080px;margin:0 auto;padding:36px 20px 64px}
+
+header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+h1{font-size:26px;line-height:1.3;margin:0 0 4px;letter-spacing:-.01em}
+.lead{margin:0;color:var(--sub);font-size:14.5px}
+.open{display:inline-flex;align-items:center;gap:6px;padding:10px 16px;border-radius:9px;background:var(--accent);color:#fff;
+  text-decoration:none;font-weight:700;font-size:14px;white-space:nowrap}
+
+/* 발행 5단계 */
+.flow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+.flow h2{margin:0 0 12px}
+.steps{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:0;padding:0;list-style:none;counter-reset:s}
+.steps li{position:relative;background:var(--soft);border-radius:10px;padding:12px 12px 12px 44px;font-size:13px;line-height:1.55;counter-increment:s}
+.steps li::before{content:counter(s);position:absolute;left:12px;top:12px;width:22px;height:22px;border-radius:50%;
+  background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+.steps .st{display:block;font-size:13.5px;font-weight:700;margin-bottom:2px}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:start}
+.card{break-inside:avoid;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 18px;margin:0 0 16px}
+h2{font-size:15.5px;line-height:1.35;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+h2 .n{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+p{margin:0 0 8px}
+p:last-child{margin-bottom:0}
+ul{margin:0 0 8px;padding-left:18px}
+ul:last-child{margin-bottom:0}
+li{margin-bottom:3px}
+.k{display:inline-block;min-width:1.6em;padding:0 6px;border:1px solid #d6dce3;border-bottom-width:2px;border-radius:5px;background:#fff;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;line-height:1.55;text-align:center;color:var(--ink);white-space:nowrap}
+.ui{font-weight:700;white-space:nowrap}
+.dim{color:var(--mute)}
+table.t{width:100%;border-collapse:collapse;font-size:13px;margin:4px 0 8px}
+table.t td{padding:4px 0;border-bottom:1px dashed var(--line);vertical-align:top}
+table.t tr:last-child td{border-bottom:0}
+table.t td:first-child{width:38%;font-weight:700;padding-right:8px;white-space:nowrap}
+.warn{background:var(--warnbg);border:1px solid var(--warnline);color:var(--warn);border-radius:9px;padding:8px 10px;font-size:12.5px;line-height:1.55;margin-top:8px}
+.tip{background:var(--soft);border-radius:9px;padding:8px 10px;font-size:12.5px;color:var(--sub);margin-top:8px}
+footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
+
+@media screen and (max-width:860px){
+  .steps{grid-template-columns:1fr}
+  .grid{grid-template-columns:1fr}
+  header{align-items:flex-start}
+}
+
+/* 인쇄 — A4 한 장 */
+@page{size:A4 portrait;margin:9mm}
+@media print{
+  body{background:#fff;font-size:7.7pt;line-height:1.38}
+  .page{max-width:none;padding:0}
+  header{margin-bottom:6pt}
+  h1{font-size:15pt;margin:0}
+  .lead{font-size:8.6pt}
+  .open{display:none}
+  .flow{padding:6pt 8pt;margin-bottom:6pt;border-radius:7pt}
+  .flow h2{margin-bottom:5pt}
+  .steps{gap:4pt}
+  .steps li{padding:5pt 5pt 5pt 21pt;font-size:7.6pt;line-height:1.38;border-radius:5pt}
+  .steps li::before{left:5pt;top:5pt;width:12pt;height:12pt;font-size:7pt}
+  .steps .st{font-size:8pt;margin:0}
+  .grid{gap:6pt}
+  .card{padding:5pt 7pt;margin-bottom:6pt;border-radius:7pt}
+  h2{font-size:9pt;margin-bottom:3pt}
+  h2 .n{font-size:6.5pt;padding:0 3pt}
+  p,ul{margin-bottom:3pt}
+  ul{padding-left:11pt}
+  li{margin-bottom:1pt}
+  .k{font-size:6.8pt;padding:0 3pt;border-bottom-width:1px}
+  table.t{font-size:7.4pt;margin:2pt 0 3pt}
+  table.t td{padding:1pt 0}
+  .warn,.tip{font-size:7.4pt;padding:3pt 5pt;margin-top:3pt;border-radius:5pt}
+  footer{display:none}
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header>
+  <div>
+    <h1>아티클 편집기 사용 안내</h1>
+    <p class="lead">아임웹에 올릴 글을 여기서 쓰고, 만들어진 코드를 아임웹에 붙여넣습니다. <b>편집기에 보이는 모습이 아임웹에 그대로 나옵니다.</b></p>
+  </div>
+  <a class="open" href="./">편집기 열기 →</a>
+</header>
+
+<section class="flow">
+  <h2>글 하나 발행하기 — 이 순서만 기억하세요</h2>
+  <ol class="steps">
+    <li><span class="st">Chrome으로 열기</span>받은 편집기 링크(또는 파일)를 <b>Chrome</b>으로 엽니다. 쓰는 글은 자동 저장됩니다.</li>
+    <li><span class="st">쓰기</span>왼쪽 <span class="ui">문서 정보</span>에 제목·키워드를 넣고, 가운데 흰 화면에 본문을 씁니다.</li>
+    <li><span class="st">복사</span>오른쪽 위 <span class="ui">HTML 복사</span> → 창에서 <span class="ui">복사</span>.</li>
+    <li><span class="st">아임웹에 붙여넣기</span>아임웹 글쓰기 → 툴바 <span class="ui">코드보기 &lt;/&gt;</span> → 안의 내용을 <b>전부 지우고</b> 붙여넣기 → 코드보기를 다시 끕니다.</li>
+    <li><span class="st">원고 보관</span>편집기 위 <span class="ui">저장</span>을 눌러 원고 파일(.json)을 내려받아 둡니다.</li>
+  </ol>
+</section>
+
+<div class="grid">
+ <div class="col">
+  <section class="card">
+    <h2><span class="n">1</span>블록 넣기</h2>
+    <p>글은 <b>블록</b>(문단·제목·이미지 등) 단위로 쌓입니다. 빈 줄에서 <span class="k">/</span> 를 치거나, 블록 왼쪽 <span class="k">＋</span> 를 누르면 목록이 뜹니다. <span class="k">/표</span>처럼 이어 치면 바로 찾아지고, <span class="k">Enter</span>로 넣습니다.</p>
+    <table class="t">
+      <tr><td>본문 · 제목 2~4</td><td>일반 문단과 큰·중간·작은 제목</td></tr>
+      <tr><td>불릿 · 번호 목록</td><td><span class="k">Tab</span> 들여쓰기, <span class="k">Shift</span>+<span class="k">Tab</span> 내어쓰기</td></tr>
+      <tr><td>인용문</td><td>왼쪽 세로선이 있는 굵은 문장</td></tr>
+      <tr><td>콜아웃 박스</td><td>이모지가 붙은 강조 상자</td></tr>
+      <tr><td>토글</td><td>눌러서 접었다 펴는 블록</td></tr>
+      <tr><td>2열 · 3열</td><td>내용을 좌우로 나란히</td></tr>
+      <tr><td>이미지 · 표 · 버튼</td><td>아래 5·6·7번 참고</td></tr>
+      <tr><td>구분선 · 여백 · 유튜브</td><td>가로선, 빈 공간, 영상</td></tr>
+    </table>
+  </section>
+  <section class="card">
+    <h2><span class="n">2</span>빠른 입력 <span class="dim" style="font-weight:500;font-size:12px">노션과 같습니다</span></h2>
+    <p>문단 맨 앞에 아래처럼 치고 <b>띄어쓰기</b>하면 블록이 바뀝니다.</p>
+    <table class="t">
+      <tr><td><span class="k">##</span> <span class="k">###</span> <span class="k">####</span></td><td>제목 2 · 3 · 4</td></tr>
+      <tr><td><span class="k">-</span> &nbsp; <span class="k">1.</span></td><td>불릿 목록 · 번호 목록</td></tr>
+      <tr><td><span class="k">"</span></td><td>인용문</td></tr>
+      <tr><td><span class="k">&gt;</span></td><td>토글</td></tr>
+      <tr><td><span class="k">---</span></td><td>구분선 (띄어쓰기 없이)</td></tr>
+    </table>
+    <p class="dim">블록 사이는 방향키로 오갈 수 있습니다.</p>
+  </section>
+  <section class="card">
+    <h2><span class="n">3</span>글자 꾸미기</h2>
+    <p>글자를 <b>드래그해서 고르면</b> 검은 서식 바가 뜹니다.</p>
+    <table class="t">
+      <tr><td>굵게 · 기울임 · 밑줄</td><td><span class="k">⌘B</span> <span class="k">⌘I</span> <span class="k">⌘U</span></td></tr>
+      <tr><td>코드 표시</td><td><span class="k">⌘E</span> — 회색 바탕의 강조</td></tr>
+      <tr><td>글자색 · 형광펜</td><td>서식 바의 <b>A</b></td></tr>
+      <tr><td>링크</td><td><span class="k">⌘K</span> 또는 🔗, 해제는 ⊘</td></tr>
+    </table>
+    <p class="dim">윈도우에서는 <span class="k">⌘</span> 대신 <span class="k">Ctrl</span>을 누릅니다.</p>
+  </section>
+  <section class="card">
+    <h2><span class="n">4</span>블록 옮기기 · 고치기</h2>
+    <p>블록에 마우스를 올리면 왼쪽에 <span class="k">＋</span> <span class="k">⠿</span> 가 나옵니다.</p>
+    <ul>
+      <li><span class="k">⠿</span> 를 <b>잡고 끌면</b> 원하는 자리로 이동</li>
+      <li><span class="k">⠿</span> 를 <b>누르면</b> 메뉴: <span class="ui">전환</span>(본문↔제목·목록·콜아웃 등), <span class="ui">배경색</span>(콜아웃·토글), 위로·아래로·<span class="ui">복제</span>·<span class="ui">삭제</span></li>
+      <li>여러 블록: 글 바깥 <b>빈 곳에서 끌어</b> 고른 뒤 <span class="k">Backspace</span>로 삭제, <span class="k">⠿</span>로 함께 이동</li>
+      <li>콜아웃·토글·열 <b>안에서도</b> <span class="k">/</span>로 제목·목록·이미지·표를 넣을 수 있습니다. 콜아웃 이모지는 눌러서 바꿉니다</li>
+    </ul>
+    <p><span class="k">⌘Z</span> 되돌리기 · <span class="k">⇧⌘Z</span> 다시 실행. 지운 블록도 되살아납니다.</p>
+  </section>
+ </div>
+ <div class="col">
+  <section class="card">
+    <h2><span class="n">5</span>이미지 — 아임웹에 먼저 올립니다</h2>
+    <p>편집기는 사진 파일을 직접 올리지 못합니다. 아임웹에 올린 사진의 <b>주소</b>를 가져와 씁니다.</p>
+    <ul>
+      <li>아임웹 글쓰기 화면에 쓸 사진을 <b>모두 업로드</b>합니다 (글은 안 써도 됩니다)</li>
+      <li>코드보기를 켜고 안의 내용을 <b>전체 복사</b>합니다</li>
+      <li>편집기 왼쪽 <span class="ui">이미지</span> → <span class="ui">아임웹 이미지 불러오기</span>에 붙여넣습니다</li>
+      <li>모인 사진을 누르면 본문에 들어갑니다</li>
+    </ul>
+    <p>본문의 사진을 누르면 설정창이 열립니다. 너비·모서리·캡션을 정하고, <b>대체 텍스트는 꼭</b> 적어주세요 (검색·접근성).</p>
+    <div class="tip">사진이 아직 없으면 방식을 <b>자리표시자</b>로 두세요. 회색 상자로 자리만 잡아두고, 아임웹에서 나중에 바꿔 끼웁니다.</div>
+  </section>
+  <section class="card">
+    <h2><span class="n">6</span>표</h2>
+    <table class="t">
+      <tr><td><span class="k">Tab</span></td><td>다음 칸 (마지막 칸이면 새 행)</td></tr>
+      <tr><td><span class="k">Enter</span></td><td>아래 칸 (마지막 행이면 새 행)</td></tr>
+      <tr><td><span class="k">Shift</span>+<span class="k">Enter</span></td><td>칸 안에서 줄바꿈</td></tr>
+    </table>
+    <ul>
+      <li>행 왼쪽 <span class="k">⋮</span> · 열 위 <span class="k">⋯</span>: 추가·삭제·배경색, 열은 <b>정렬</b>까지</li>
+      <li>칸 오른쪽 위 <span class="k">▾</span>: 그 칸만 색칠</li>
+      <li>열 사이 경계를 <b>끌면</b> 너비 조절, 표 아래·오른쪽 <span class="k">＋</span>로 행·열 추가</li>
+      <li>제목 행·제목 열 켜고 끄기는 <span class="k">⠿</span> 메뉴</li>
+    </ul>
+    <p class="dim">엑셀·구글 시트에서 복사해 붙이면 그대로 표가 됩니다. 휴대폰에서는 표를 옆으로 밀어서 봅니다.</p>
+  </section>
+  <section class="card">
+    <h2><span class="n">7</span>버튼 · 유튜브</h2>
+    <p>편집기에서 누르면 링크로 넘어가지 않고 <b>설정창</b>이 열립니다.</p>
+    <ul>
+      <li><b>버튼</b>: 문구, 링크, 모양(사각·라운드·캡슐), 크기, 정렬, 색, 꽉 채우기. 링크는 <span class="ui">열어보기</span>로 확인</li>
+      <li><b>유튜브</b>: 영상 주소를 붙여넣습니다 (일반·youtu.be·쇼츠 모두 됨). 편집기에선 재생되지 않고, 발행하면 재생됩니다</li>
+    </ul>
+  </section>
+ </div>
+ <div class="col">
+  <section class="card">
+    <h2><span class="n">8</span>원고 관리</h2>
+    <table class="t">
+      <tr><td>저장</td><td>원고 파일(.json)을 내려받습니다</td></tr>
+      <tr><td>불러오기</td><td>저장한 원고를 열어 이어 씁니다</td></tr>
+      <tr><td>새로 쓰기</td><td>지금 글을 지우고 처음부터</td></tr>
+    </table>
+    <div class="warn"><b>한 브라우저에는 원고가 하나만 열립니다.</b> 새 글을 시작하기 전에 꼭 <span class="ui">저장</span>하세요.
+    여럿이 동시에 편집하는 도구가 아닙니다. 다른 사람에게 넘길 때는 .json 파일을 보내고, 받은 사람이 <span class="ui">불러오기</span>로 엽니다.</div>
+  </section>
+  <section class="card">
+    <h2><span class="n">9</span>아임웹에서 고친 글 다시 가져오기</h2>
+    <p>아임웹에 붙인 뒤 거기서 손본 글도 다시 편집기로 가져와 이어 쓸 수 있습니다.</p>
+    <ul>
+      <li>아임웹 코드보기 내용을 <b>전체 복사</b></li>
+      <li>편집기 왼쪽 <span class="ui">아임웹에서 가져오기</span> → <span class="ui">아임웹 HTML 불러오기</span>에 붙여넣기</li>
+      <li><span class="ui">현재 원고 대체</span> 또는 <span class="ui">뒤에 이어붙이기</span></li>
+    </ul>
+    <p class="dim">잘못 불러와도 <span class="k">⌘Z</span>로 되돌릴 수 있습니다.</p>
+  </section>
+  <section class="card">
+    <h2><span class="n">10</span>왼쪽 패널의 나머지</h2>
+    <ul>
+      <li><span class="ui">발행 전 점검</span>: 제목 길이, 키워드 수, 제목 순서, 이미지 대체 텍스트, 분량을 확인해 줍니다</li>
+      <li><span class="ui">웹으로 공유</span> → <span class="ui">웹페이지로 저장</span>: 아임웹에 올리기 전 검토용으로 보낼 한 장짜리 웹페이지를 만듭니다</li>
+      <li><span class="ui">디자인 설정</span>: 글자 크기·여백·색. <b>팀이 같은 모양을 쓰도록 바꾸지 마세요.</b> 바꿨다면 <span class="ui">기본값으로 되돌리기</span></li>
+    </ul>
+  </section>
+  <section class="card">
+    <h2><span class="n">11</span>이럴 땐</h2>
+    <ul>
+      <li><b>위에 '자동 저장 꺼짐'이 떠요</b> — Chrome이 아닌 브라우저입니다. Chrome으로 다시 열거나, <span class="ui">저장</span>을 자주 눌러주세요</li>
+      <li><b>아임웹에서 모양이 달라요</b> — 코드보기 안을 <b>전부 지우고</b> 붙였는지, 붙인 뒤 코드보기를 껐는지 확인하세요</li>
+      <li><b>사진 대신 회색 상자가 나와요</b> — 자리표시자입니다. 아임웹에서 사진으로 바꿔 끼우세요</li>
+      <li><b>더 알고 싶어요</b> — 편집기 왼쪽 맨 아래 <span class="ui">도움말</span></li>
+    </ul>
+  </section>
+ </div>
+</div>
+
+<footer>스위트스팟 아티클 편집기 · 인쇄하면 A4 한 장으로 나옵니다</footer>
+</div>
+</body>
+</html>
