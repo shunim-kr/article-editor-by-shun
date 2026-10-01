@@ -3028,20 +3028,43 @@ $('#main').addEventListener('mousedown', function(e){
   if (e.target.closest('.bd') || e.target.closest('.gut') || e.target.closest('.insp') ||
       e.target.closest('.obj') || e.target.closest('.pop') || e.target.closest('#ftb') ||
       e.target.closest('.col-rs') || e.target.closest('.tb-inner')) return;
-  band = {x:e.clientX, y:e.clientY, moved:false};
+  /* 시작점은 화면이 아니라 글 기준 위치로 기억합니다 — 스크롤해도 시작한 블록이 빠지지 않게 */
+  band = {x:e.clientX, y:e.clientY, sy:e.clientY + $('#main').scrollTop, cx:e.clientX, cy:e.clientY, moved:false};
 });
 document.addEventListener('mousemove', function(e){
   if (!band) return;
+  band.cx = e.clientX; band.cy = e.clientY;
   /* 클릭할 때의 손 흔들림으로 밴드가 시작되지 않도록 문턱을 넉넉히 둡니다 */
   if (!band.moved && Math.abs(e.clientX-band.x) < 10 && Math.abs(e.clientY-band.y) < 10) return;
   if (!band.moved) blurEditor();
   band.moved = true;
+  bandUpdate();
+  if (!bandRaf) bandRaf = requestAnimationFrame(bandScroll);
+});
+let bandRaf = null;
+/* 끌면서 화면 위·아래 끝에 닿으면 저절로 스크롤합니다 */
+function bandScroll(){
+  if (!band || !band.moved){ bandRaf = null; return; }
+  const M = $('#main'), r = M.getBoundingClientRect();
+  let dy = 0;
+  if (band.cy < r.top + 36) dy = -Math.min(26, (r.top + 36 - band.cy) / 2 + 3);
+  else if (band.cy > r.bottom - 36) dy = Math.min(26, (band.cy - (r.bottom - 36)) / 2 + 3);
+  if (dy){ M.scrollTop += dy; bandUpdate(); }
+  bandRaf = requestAnimationFrame(bandScroll);
+}
+$('#main').addEventListener('scroll', function(){ if (band && band.moved) bandUpdate(); });
+function bandUpdate(){
+  if (!band) return;
+  const M = $('#main'), mr = M.getBoundingClientRect();
+  const startY = band.sy - M.scrollTop;                 /* 스크롤된 만큼 시작점도 같이 움직입니다 */
   if (!bandEl){ bandEl = document.createElement('div'); bandEl.id = 'band'; document.body.appendChild(bandEl); }
-  const x = Math.min(e.clientX, band.x), y = Math.min(e.clientY, band.y);
-  bandEl.style.left = x+'px'; bandEl.style.top = y+'px';
-  bandEl.style.width = Math.abs(e.clientX-band.x)+'px';
-  bandEl.style.height = Math.abs(e.clientY-band.y)+'px';
-  const top = Math.min(e.clientY, band.y), bot = Math.max(e.clientY, band.y);
+  const top = Math.min(band.cy, startY), bot = Math.max(band.cy, startY);
+  /* 상자는 보이는 영역 안에서만 그립니다 */
+  const dTop = Math.max(top, mr.top), dBot = Math.min(bot, mr.bottom);
+  bandEl.style.left = Math.min(band.cx, band.x)+'px';
+  bandEl.style.width = Math.abs(band.cx - band.x)+'px';
+  bandEl.style.top = dTop+'px';
+  bandEl.style.height = Math.max(0, dBot - dTop)+'px';
   const ids = [];
   $$('.blk[data-top]', EDITOR).forEach(function(w){
     const r = w.getBoundingClientRect();
@@ -3054,7 +3077,7 @@ document.addEventListener('mousemove', function(e){
   }
   multi = ids;
   paintMulti();
-});
+}
 let justBanded = false;
 /* 다음 마우스 누름에 초기화 — 타이머보다 확실합니다 */
 document.addEventListener('mousedown', function(){ justBanded = false; }, true);
@@ -3063,6 +3086,7 @@ document.addEventListener('mouseup', function(){
   const moved = band.moved;
   justBanded = moved;
   band = null;
+  if (bandRaf){ cancelAnimationFrame(bandRaf); bandRaf = null; }
   if (bandEl){ bandEl.remove(); bandEl = null; }
   if (!moved) return;
 
@@ -3169,18 +3193,26 @@ function xdScroll(){
 }
 document.addEventListener('mousemove', function(e){
   if (!xd) return;
-  if (!(e.buttons & 1)){ xd = null; return; }
+  /* 스크롤하면 브라우저가 '버튼 안 누름'으로 표시된 가짜 이동을 보냅니다(이동량 0).
+     그것까지 손을 뗀 것으로 보면 스크롤하는 순간 선택이 풀립니다. 실제로 움직였을 때만 판단합니다. */
+  if (!(e.buttons & 1)){
+    if (e.movementX || e.movementY){ xdEnd(); }
+    return;
+  }
   xd.x = e.clientX; xd.y = e.clientY;
   if (!xd.moved && Math.abs(xd.x - xd.sx) < 3 && Math.abs(xd.y - xd.sy) < 3) return;
   xd.moved = true;
   xdUpdate();
   if (!xdRaf) xdRaf = requestAnimationFrame(xdScroll);
 });
-document.addEventListener('mouseup', function(){
-  if (!xd) return;
+function xdEnd(){
   xd = null;
   if (xdRaf){ cancelAnimationFrame(xdRaf); xdRaf = null; }
-});
+}
+document.addEventListener('mouseup', function(){ if (xd) xdEnd(); });
+window.addEventListener('blur', function(){ if (xd) xdEnd(); });
+/* 끄는 중에 휠·트랙패드로 스크롤하면, 손가락 아래로 지나가는 글자까지 선택을 넓힙니다 */
+$('#main').addEventListener('scroll', function(){ if (xd && xd.moved) xdUpdate(); });
 
 /* 지금 선택이 두 칸 이상에 걸쳐 있으면 그 정보를 돌려줍니다 */
 function crossSel(){
