@@ -430,12 +430,11 @@ body.col-resizing .bd{pointer-events:none}
           <div class="grp">
             <div class="gt">모바일 대응</div>
             <div class="fld">
-              <label>출력 글자 크기</label>
-              <div class="seg" id="segResp">
-                <button data-v="false">고정 크기</button>
-                <button data-v="true">화면 폭에 맞춰 조절</button>
-              </div>
-              <div class="hint">켜면 제목·본문이 좁은 화면(휴대폰)에서 자동으로 작아집니다. <b>아임웹이 이 크기 값을 지워 제목이 아주 크게 나오는 문제가 있어 꺼 두었습니다.</b> 켜지 마세요.</div>
+              <label>휴대폰 글자 크기</label>
+              <button class="btn sm" id="bMobileCss" style="width:100%;justify-content:center">휴대폰용 코드 복사</button>
+              <div class="hint">편집기에 보이는 크기가 <b>최대</b>이고, 화면이 좁아질수록 폭에 맞춰 작아집니다(폭 360px에서 가장 작게).
+              복사한 코드를 아임웹 <b>게시판 설정 → 게시물 본문 상단 코드</b>에 붙여넣으세요. 이미 올린 글에도 바로 적용됩니다.
+              디자인 설정의 크기를 바꿨다면 다시 복사해 바꿔 넣어주세요.</div>
             </div>
           </div>
           <div class="grp">
@@ -733,6 +732,49 @@ function fluid(maxPx, ratio){
   const slope = (maxPx - min) / 400;
   const inter = +(min - slope * 360).toFixed(2);
   return 'clamp(' + min + 'px, calc(' + inter + 'px + ' + (slope * 100).toFixed(2) + 'vw), ' + maxPx + 'px)';
+}
+/* 화면 폭 360px 에서 최소, 760px 이상에서 최대가 되는 비례 크기 */
+function clampPx(maxPx, ratio){
+  const min = Math.max(12, Math.round(maxPx * ratio));
+  if (min >= maxPx) return maxPx + 'px';
+  const slope = (maxPx - min) / 400;
+  const inter = +(min - slope * 360).toFixed(2);
+  return 'clamp(' + min + 'px, calc(' + inter + 'px + ' + (slope * 100).toFixed(2) + 'vw), ' + maxPx + 'px)';
+}
+/* 아임웹 '게시물 본문 상단 코드'에 넣는 휴대폰용 CSS.
+   본문 붙여넣기는 clamp 를 지우지만, 이 칸은 일반 스타일시트라 그대로 씁니다.
+   편집기 출력은 고정 px 이고, 그 px 값과 Pretendard 글꼴이 함께 박힌 글자만 골라 덮어씁니다. */
+function mobileCss(){
+  const d = state.design;
+  const sizes = [];
+  const add = function(px, ratio){
+    const e = sizes.find(function(x){ return x[0] === px; });
+    if (e) e[1] = Math.max(e[1], ratio); else sizes.push([px, ratio]);
+  };
+  add(d.h2s, 0.78); add(d.h3s, 0.78); add(d.h4s, 0.78);
+  add(d.bodySize, 0.88);
+  add(Math.max(14, d.bodySize - 2), 0.92);           /* 표 칸 */
+  add(Math.max(15, d.bodySize), 0.9);                 /* 토글 제목 */
+  Object.keys(BTN_SIZE).forEach(function(k){ add(BTN_SIZE[k].f, 0.9); });
+  sizes.sort(function(a, b){ return b[0] - a[0]; });
+  const sel = function(prop, val){
+    return '[style*="Pretendard"][style*="' + prop + ':' + val + '"],\n' +
+           '[style*="Pretendard"][style*="' + prop + ': ' + val + '"]';
+  };
+  let out = '<style>\n/* 아티클 편집기 — 편집기에 보이는 크기가 최대, 화면이 좁아지면 폭에 맞춰 줄어듭니다 (폭 360px에서 최소) */\n';
+  sizes.forEach(function(x){
+    const c = clampPx(x[0], x[1]);
+    if (c === x[0] + 'px') return;
+    out += sel('font-size', x[0] + 'px') + '{font-size:' + c + ' !important;}\n';
+  });
+  /* 제목 위 여백도 같은 비율로 줄입니다 */
+  [['h2', d.h2m], ['h3', d.h3m], ['h4', d.h4m]].forEach(function(h){
+    const c = clampPx(h[1], 0.7);
+    if (c === h[1] + 'px') return;
+    /* 상자 안 첫 제목처럼 위 여백을 0 으로 둔 곳은 건드리지 않습니다 */
+    out += h[0] + '[style*="Pretendard"]:not([style*="margin-top:0"]):not([style*="margin-top: 0"]){margin-top:' + c + ' !important;}\n';
+  });
+  return out + '</style>';
 }
 function textBase(d){ return {'font-family':FONT,'font-size':fluid(d.bodySize,0.88),'line-height':d.bodyLh,'color':d.bodyColor}; }
 function headStyle(d, size, mt, below){
@@ -5615,11 +5657,25 @@ $('#segColMode').addEventListener('click', function(e){
   syncModeSegs(); render(); scheduleSave();
   toast(btn.dataset.v === 'table' ? '표 방식으로 바꿨습니다' : 'flex 방식으로 바꿨습니다');
 });
-$('#segResp').addEventListener('click', function(e){
-  const btn = e.target.closest('button'); if (!btn) return;
-  state.design.resp = btn.dataset.v === 'true';
-  syncModeSegs(); restyle(); scheduleSave();
-  toast(state.design.resp ? '출력 글자 크기가 화면 폭에 맞춰집니다' : '출력 글자 크기를 고정합니다');
+$('#bMobileCss').addEventListener('click', function(){
+  const code = mobileCss();
+  openModal({
+    title:'휴대폰용 글자 크기 코드',
+    body:'<ol class="steps" style="margin-bottom:14px">'+
+      '<li>아래 <b>[복사]</b>를 누릅니다.</li>'+
+      '<li>아임웹 관리자 → 블로그 게시판 설정 → <b>게시물 본문 상단 코드</b>를 엽니다.</li>'+
+      '<li>예전에 넣은 코드가 있으면 <b>지우고</b> 붙여넣은 뒤 저장합니다.</li>'+
+      '<li>휴대폰으로 글을 열어 제목·본문이 알맞게 작아졌는지 봅니다. PC에서는 편집기와 같은 크기 그대로입니다.</li></ol>'+
+      '<textarea id="outMcss" readonly>'+esc(code)+'</textarea>',
+    note:'편집기 글자에만 적용됩니다. 아임웹의 다른 글자는 건드리지 않습니다.',
+    buttons:[{label:'닫기'},{label:'복사', pri:true, close:false, act:function(m){
+      const ta = $('#outMcss', m); ta.select();
+      navigator.clipboard.writeText(code).then(function(){ toast('휴대폰용 코드를 복사했습니다'); })
+        .catch(function(){ document.execCommand('copy'); toast('휴대폰용 코드를 복사했습니다'); });
+      return false;
+    }}],
+    onOpen:function(m){ $('#outMcss', m).style.minHeight = '220px'; }
+  });
 });
 $('#segView').addEventListener('click', function(e){
   const btn = e.target.closest('button'); if (!btn) return;
