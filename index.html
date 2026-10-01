@@ -4113,6 +4113,13 @@ EDITOR.addEventListener('paste', function(e){
     const tsv = tsvTable(plain);
     const blocks = tsv ? [tsv] : parseMd(plain);
     if (!blocks.length) return;
+    if (blocks.length === 1 && blocks[0].type === 'p' && c.f === 'html' && TYPES[c.b.type].text){
+      document.execCommand('insertHTML', false, pasteLinesHtml(html) || blocks[0].html);
+      const cc = curBlock();
+      if (cc && cc.bd) setF(cc.b, cc.f, cc.bd.innerHTML);
+      scheduleSave();
+      return;
+    }
     const b = c.b;
     const own = listOf(b.id) || state.blocks;
     const at = own.indexOf(b);
@@ -4181,6 +4188,16 @@ function pasteIntoTable(b, f, plain, html){
   scheduleSave();
 }
 
+/* 복사해 온 HTML 을 한 문단용으로 — 문단·줄 경계는 줄바꿈으로 바꾸고 굵게·링크·색은 남깁니다 */
+function pasteLinesHtml(html){
+  if (!html) return '';
+  const box = document.createElement('div');
+  box.innerHTML = String(html).replace(/<(meta|style|script|title)[^>]*>[\s\S]*?<\/\1>|<meta[^>]*>/gi, '');
+  Array.from(box.querySelectorAll('p,div,li,h1,h2,h3,h4,h5,h6,blockquote,tr')).forEach(function(x){
+    x.insertAdjacentHTML('afterend', '<br>');
+  });
+  return cleanInline(box.innerHTML, state.design).replace(/(?:<br>\s*){2,}/g, '<br>');
+}
 function mdInline(s){
   let x = esc(s);
   x = x.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, '$1');
@@ -4211,8 +4228,15 @@ function buildListHtml(items, type){
 function parseMd(text){
   const lines = text.replace(/\r\n?/g,'\n').split('\n');
   const out = [];
-  let list = null, tbl = null;
+  let list = null, tbl = null, para = null;
+  /* 빈 줄 없이 이어진 일반 줄들은 한 문단 안의 줄바꿈입니다 — 줄마다 문단을 만들면 띄엄띄엄 붙습니다 */
+  function flushPara(){
+    if (!para) return;
+    out.push(newBlock('p', {html: para.join('<br>')}));
+    para = null;
+  }
   function flush(){
+    flushPara();
     if (!list) return;
     out.push(newBlock(list.type, {html: buildListHtml(list.items, list.type)}));
     list = null;
@@ -4242,6 +4266,7 @@ function parseMd(text){
     const depth = Math.min(2, Math.floor(indent / 2));
     let m;
     if (/^\|.*\|$/.test(t) && t.length > 1){ flush(); (tbl = tbl || []).push(t); return; }
+    if (tbl) flushPara();
     flushTbl();
     if (!t){ flush(); return; }
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(t)){ flush(); out.push(newBlock('hr')); return; }
@@ -4258,15 +4283,17 @@ function parseMd(text){
     }
     if ((m = t.match(/^>\s?(.*)$/))){ flush(); out.push(newBlock('quote', {html: mdInline(m[1])})); return; }
     if ((m = t.match(/^[-*+]\s+(.*)$/))){
+      flushPara();
       if (!list || list.type !== 'ul'){ flush(); list = {type:'ul', items:[]}; }
       list.items.push({depth: depth, html: mdInline(m[1])}); return;
     }
     if ((m = t.match(/^\d+[.)]\s+(.*)$/))){
+      flushPara();
       if (!list || list.type !== 'ol'){ flush(); list = {type:'ol', items:[]}; }
       list.items.push({depth: depth, html: mdInline(m[1])}); return;
     }
-    flush();
-    out.push(newBlock('p', {html: mdInline(t)}));
+    if (list){ const l = list; list = null; out.push(newBlock(l.type, {html: buildListHtml(l.items, l.type)})); }
+    (para = para || []).push(mdInline(t));
   });
   flushTbl();
   flush();
