@@ -2849,7 +2849,16 @@ EDITOR.addEventListener('click', function(e){
     if (e.shiftKey && lastClicked && w){ selectRange(lastClicked, w.dataset.id); return; }
     if (w) lastClicked = w.dataset.id;
     if (multi.length) clearMulti();
-    if (sel){ sel = null; render(); }
+    if (sel){
+      /* 설정창을 닫으며 화면을 다시 그려도 방금 찍은 커서 자리를 지킵니다 */
+      sel = null;
+      const c = curBlock();
+      const s0 = window.getSelection();
+      if (c && c.bd && s0.rangeCount && s0.isCollapsed){
+        focusNext = {id:c.b.id, field:c.f, at:'offset', offset:textOffsetIn(c.bd, s0.anchorNode, s0.anchorOffset)};
+      }
+      render();
+    }
   }
 });
 
@@ -3071,10 +3080,12 @@ document.addEventListener('mouseup', function(){
   }
 });
 
-/* --- 글자를 끌다가 블록을 넘어가면 블록 선택으로 전환 --- */
+/* --- 글자가 아닌 곳(이미지 등)에서 끌기 시작해 블록을 넘어가면 블록 선택으로 전환 ---
+   글자에서 시작한 끌기는 아래 '문단을 넘는 글자 선택'이 맡습니다. */
 document.addEventListener('mouseup', function(){
   if (band || justBanded) return;
   setTimeout(function(){
+    if (xdOwned) return;
     const s = window.getSelection();
     if (!s || !s.rangeCount || s.isCollapsed) return;
     const a = blkOf(s.anchorNode), f = blkOf(s.focusNode);
@@ -3083,6 +3094,344 @@ document.addEventListener('mouseup', function(){
     selectRange(a.dataset.id, f.dataset.id);
   }, 0);
 });
+
+/* ==================================================================
+   문단을 넘는 글자 선택
+   문단마다 따로 편집 칸이라, 브라우저는 끌기를 시작한 문단 끝에서 선택을 멈춥니다.
+   글자에서 시작한 끌기는 편집기가 직접 선택을 잡아 다음 문단 중간까지 이어지게 하고,
+   그렇게 생긴 선택의 복사·삭제·입력·서식도 직접 처리합니다.
+   ================================================================== */
+let xd = null, xdOwned = false, xdRaf = null;
+function bdOfNode(n){
+  if (!n) return null;
+  const e = n.nodeType === 3 ? n.parentNode : n;
+  const bd = e && e.closest ? e.closest('.bd') : null;
+  return (bd && EDITOR.contains(bd)) ? bd : null;
+}
+/* 화면 좌표 → 가장 가까운 편집 칸 안의 글자 위치 */
+function caretFromPointInEditor(x, y){
+  const el = document.elementFromPoint(x, y);
+  let bd = bdOfNode(el);
+  if (!bd){
+    let best = null, bestD = Infinity;
+    editableList().forEach(function(b){
+      const r = b.getBoundingClientRect();
+      if (!r.height && !r.width) return;
+      const dy = y < r.top ? r.top - y : (y > r.bottom ? y - r.bottom : 0);
+      const dx = x < r.left ? r.left - x : (x > r.right ? x - r.right : 0);
+      const dd = dy * 1000 + dx;
+      if (dd < bestD){ bestD = dd; best = b; }
+    });
+    bd = best;
+  }
+  if (!bd) return null;
+  const r = bd.getBoundingClientRect();
+  const cx = Math.max(r.left + 1, Math.min(x, r.right - 1));
+  const cy = Math.max(r.top + 1, Math.min(y, r.bottom - 1));
+  let rg = rangeFromPoint(cx, cy);
+  if (!rg || !bd.contains(rg.startContainer)){
+    rg = document.createRange();
+    rg.selectNodeContents(bd);
+    rg.collapse(y < r.top + r.height / 2);
+  }
+  return {bd:bd, node:rg.startContainer, off:rg.startOffset};
+}
+document.addEventListener('mousedown', function(){ xdOwned = false; }, true);
+EDITOR.addEventListener('mousedown', function(e){
+  if (e.button !== 0 || e.detail > 1 || e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) return;
+  if (e.sourceCapabilities && e.sourceCapabilities.firesTouchEvents) return;   /* 터치는 브라우저에 맡깁니다 */
+  if (!e.target.closest || e.target.closest('.tb-ui') || e.target.closest('.insp')) return;
+  const bd = e.target.closest('.bd');
+  if (!bd) return;
+  const p = caretFromPointInEditor(e.clientX, e.clientY);
+  if (!p || p.bd !== bd) return;
+  e.preventDefault();
+  if (document.activeElement !== bd) bd.focus({preventScroll:true});
+  try { window.getSelection().setBaseAndExtent(p.node, p.off, p.node, p.off); } catch(err){ return; }
+  xd = {a:p, x:e.clientX, y:e.clientY, sx:e.clientX, sy:e.clientY, moved:false};
+  xdOwned = true;
+});
+function xdUpdate(){
+  if (!xd) return;
+  const f = caretFromPointInEditor(xd.x, xd.y);
+  if (!f) return;
+  try { window.getSelection().setBaseAndExtent(xd.a.node, xd.a.off, f.node, f.off); } catch(err){}
+}
+/* 끌면서 화면 위·아래 끝에 닿으면 저절로 스크롤합니다 */
+function xdScroll(){
+  if (!xd){ xdRaf = null; return; }
+  const M = $('#main'), r = M.getBoundingClientRect();
+  let dy = 0;
+  if (xd.y < r.top + 36) dy = -Math.min(26, (r.top + 36 - xd.y) / 2 + 3);
+  else if (xd.y > r.bottom - 36) dy = Math.min(26, (xd.y - (r.bottom - 36)) / 2 + 3);
+  if (dy){ M.scrollTop += dy; xdUpdate(); }
+  xdRaf = requestAnimationFrame(xdScroll);
+}
+document.addEventListener('mousemove', function(e){
+  if (!xd) return;
+  if (!(e.buttons & 1)){ xd = null; return; }
+  xd.x = e.clientX; xd.y = e.clientY;
+  if (!xd.moved && Math.abs(xd.x - xd.sx) < 3 && Math.abs(xd.y - xd.sy) < 3) return;
+  xd.moved = true;
+  xdUpdate();
+  if (!xdRaf) xdRaf = requestAnimationFrame(xdScroll);
+});
+document.addEventListener('mouseup', function(){
+  if (!xd) return;
+  xd = null;
+  if (xdRaf){ cancelAnimationFrame(xdRaf); xdRaf = null; }
+});
+
+/* 지금 선택이 두 칸 이상에 걸쳐 있으면 그 정보를 돌려줍니다 */
+function crossSel(){
+  const s = window.getSelection();
+  if (!s || !s.rangeCount || s.isCollapsed) return null;
+  const a = bdOfNode(s.anchorNode), f = bdOfNode(s.focusNode);
+  if (!a || !f || a === f) return null;
+  const r = s.getRangeAt(0);
+  const sb = bdOfNode(r.startContainer), eb = bdOfNode(r.endContainer);
+  if (!sb || !eb || sb === eb) return null;
+  const list = editableList();
+  const i0 = list.indexOf(sb), i1 = list.indexOf(eb);
+  if (i0 < 0 || i1 < i0) return null;
+  return {range:r, sBd:sb, eBd:eb, bds:list.slice(i0, i1 + 1)};
+}
+/* 칸마다 선택된 부분 */
+function crossSegs(cs){
+  return cs.bds.map(function(bd, i){
+    const r = document.createRange();
+    if (i === 0) r.setStart(cs.range.startContainer, cs.range.startOffset); else r.setStart(bd, 0);
+    if (i === cs.bds.length - 1) r.setEnd(cs.range.endContainer, cs.range.endOffset); else r.setEnd(bd, bd.childNodes.length);
+    const w = bd.closest('.blk');
+    return {bd:bd, range:r, b: w ? byId(w.dataset.id) : null, f: bd.dataset.f || 'html'};
+  });
+}
+function textOffsetIn(el, node, off){
+  const r = document.createRange();
+  r.selectNodeContents(el);
+  try { r.setEnd(node, off); } catch(err){ return 0; }
+  return r.toString().length;
+}
+function pointAtOffset(el, offset){
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+  let n, acc = 0, last = null;
+  while ((n = walker.nextNode())){
+    const len = n.nodeValue.length;
+    if (acc + len >= offset) return {node:n, off:Math.max(0, offset - acc)};
+    acc += len; last = n;
+  }
+  return last ? {node:last, off:last.nodeValue.length} : {node:el, off:el.childNodes.length};
+}
+function fragText(frag){
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:normal';
+  d.appendChild(frag);
+  document.body.appendChild(d);
+  const t = d.innerText;
+  d.remove();
+  return t.replace(/\n{3,}/g, '\n\n').trim();
+}
+function crossClipboard(cs){
+  const segs = crossSegs(cs);
+  let text = '', html = '';
+  segs.forEach(function(sg, i){
+    const t = fragText(sg.range.cloneContents());
+    if (i){
+      const prev = segs[i-1];
+      const sameTable = sg.b && prev.b === sg.b && sg.b.type === 'table';
+      const sameRow = sameTable && cellRC(sg.f) && cellRC(prev.f) && cellRC(sg.f)[0] === cellRC(prev.f)[0];
+      text += sameRow ? '\t' : (sameTable ? '\n' : '\n\n');
+    }
+    text += t;
+    const tmp = document.createElement('div');
+    tmp.appendChild(sg.range.cloneContents());
+    const type = sg.b ? sg.b.type : 'p';
+    if (TYPES[type] && TYPES[type].list){
+      const items = Array.from(tmp.querySelectorAll('li')).map(function(li){
+        const c = li.cloneNode(true);
+        Array.from(c.querySelectorAll('ul,ol')).forEach(function(x){ x.remove(); });
+        return cleanInline(c.innerHTML, state.design);
+      }).filter(Boolean);
+      if (items.length) html += '<'+type+'>' + items.map(function(x){ return '<li>'+x+'</li>'; }).join('') + '</'+type+'>';
+    } else {
+      const inner = cleanInline(tmp.innerHTML, state.design);
+      if (inner){
+        const tag = /^h[234]$/.test(type) ? type : (type === 'quote' ? 'blockquote' : 'p');
+        html += '<'+tag+'>' + inner + '</'+tag+'>';
+      }
+    }
+  });
+  return {text:text, html:html};
+}
+
+/* 선택 지우기.
+   같은 묶음 안의 글 블록끼리면 첫 문단 앞부분과 마지막 문단 뒷부분을 이어 붙이고 사이 블록은 지웁니다.
+   표 칸·토글 제목처럼 합치면 구조가 깨지는 경우에는 칸마다 고른 글자만 지웁니다. */
+function crossDelete(cs){
+  const segs = crossSegs(cs);
+  const S = segs[0], E = segs[segs.length - 1];
+  if (!S.b || !E.b) return false;
+  flushHistory();
+  const okType = function(b){ return TYPES[b.type].text || TYPES[b.type].list; };
+  const own = listOf(S.b.id);
+  const merge = S.b !== E.b && okType(S.b) && okType(E.b) && S.f === 'html' && E.f === 'html' &&
+                own && own === listOf(E.b.id) && own.indexOf(S.b) < own.indexOf(E.b);
+  if (merge){
+    const joint = textOffsetIn(S.bd, S.range.startContainer, S.range.startOffset);
+    S.range.deleteContents();
+    E.range.deleteContents();
+    /* 마지막 문단에 남은 글(목록이면 첫 항목)을 첫 문단의 선택 시작점에 붙입니다 */
+    const eList = TYPES[E.b.type].list;
+    const host = eList ? E.bd.querySelector('li') : E.bd;
+    const frag = document.createDocumentFragment();
+    if (host){
+      Array.from(host.childNodes).forEach(function(n){
+        if (n.nodeType === 1 && (n.tagName === 'UL' || n.tagName === 'OL')) return;
+        frag.appendChild(n);
+      });
+    }
+    /* 지운 뒤 범위는 목록 항목 바깥(목록 자체)으로 접힐 수 있어, 글자 위치로 다시 찾습니다 */
+    let ip = pointAtOffset(S.bd, joint);
+    if (TYPES[S.b.type].list){
+      const inLi = ip.node.nodeType === 3 ? ip.node.parentNode.closest('li') : (ip.node.closest ? ip.node.closest('li') : null);
+      if (!inLi || !S.bd.contains(inLi)){
+        let li = S.bd.querySelectorAll('li');
+        li = li[li.length - 1];
+        if (!li){ li = document.createElement('li'); S.bd.appendChild(li); }
+        const sub = findSubList(li);
+        ip = sub ? {node:li, off:Array.prototype.indexOf.call(li.childNodes, sub)} : {node:li, off:li.childNodes.length};
+      }
+    }
+    const ir = document.createRange();
+    ir.setStart(ip.node, ip.off); ir.collapse(true);
+    ir.insertNode(frag);
+    let eKeep = false;
+    if (eList && host){
+      /* 첫 항목의 하위 목록은 한 단계 올려 남깁니다 */
+      Array.from(host.children).forEach(function(sub){
+        if (sub.tagName !== 'UL' && sub.tagName !== 'OL') return;
+        while (sub.firstChild) host.parentNode.insertBefore(sub.firstChild, host);
+      });
+      host.remove();
+      eKeep = !!E.bd.querySelector('li');
+      if (eKeep) E.b.html = E.bd.innerHTML;
+    }
+    S.b.html = S.bd.innerHTML;
+    if (TYPES[S.b.type].list && !S.bd.querySelector('li')) S.b.html = '<li></li>';
+    const iS = own.indexOf(S.b), iE = own.indexOf(E.b);
+    own.splice(iS + 1, (iE - iS - 1) + (eKeep ? 0 : 1));
+    sel = null; clearMulti();
+    focusNext = {id:S.b.id, at:'offset', offset:joint};
+    render(); scheduleSave();
+    return true;
+  }
+  /* 칸마다 지우기 */
+  const startNode = S.range.startContainer, startOff = S.range.startOffset;
+  const joint = textOffsetIn(S.bd, startNode, startOff);
+  segs.forEach(function(sg){
+    sg.range.deleteContents();
+    if (sg.b && TYPES[sg.b.type].list) styleLis(sg.bd, sg.b.type);
+    if (isBlank(sg.bd.innerHTML) && !(sg.b && TYPES[sg.b.type].list)) sg.bd.innerHTML = '';
+    if (sg.b) setF(sg.b, sg.f, sg.bd.innerHTML);
+  });
+  S.bd.focus({preventScroll:true});
+  caretAtOffset(S.bd, joint);
+  updateChecks(); scheduleSave();
+  return true;
+}
+
+/* 여러 칸에 걸친 선택에 서식을 겁니다 — 칸마다 따로 적용하고, 끝나면 선택을 되살립니다 */
+function crossApply(cs, fn, stateCmd){
+  const segs = crossSegs(cs);
+  flushHistory();
+  const sOff = textOffsetIn(cs.sBd, cs.range.startContainer, cs.range.startOffset);
+  const eOff = textOffsetIn(cs.eBd, cs.range.endContainer, cs.range.endOffset);
+  const sBd = cs.sBd, eBd = cs.eBd;
+  const s = window.getSelection();
+  /* 굵게·기울임·밑줄은 한 곳이라도 꺼져 있으면 모두 켜고, 모두 켜져 있으면 모두 끕니다 */
+  let only = null;
+  if (stateCmd){
+    const st = segs.map(function(sg){
+      if (!sg.range.toString().trim()) return null;
+      sg.bd.focus({preventScroll:true});
+      s.removeAllRanges(); s.addRange(sg.range.cloneRange());
+      try { return document.queryCommandState(stateCmd); } catch(err){ return false; }
+    });
+    const want = !st.filter(function(x){ return x !== null; }).every(Boolean);
+    only = st.map(function(x){ return x !== null && x !== want; });
+  }
+  segs.forEach(function(sg, i){
+    if (!sg.range.toString().trim()) return;
+    if (only && !only[i]) return;
+    sg.bd.focus({preventScroll:true});
+    s.removeAllRanges(); s.addRange(sg.range.cloneRange());
+    document.execCommand('styleWithCSS', false, true);
+    fn();
+    if (sg.b){
+      if (TYPES[sg.b.type].list) styleLis(sg.bd, sg.b.type);
+      setF(sg.b, sg.f, sg.bd.innerHTML);
+    }
+  });
+  const a = pointAtOffset(sBd, sOff), z = pointAtOffset(eBd, eOff);
+  sBd.focus({preventScroll:true});
+  try { s.setBaseAndExtent(a.node, a.off, z.node, z.off); } catch(err){}
+  scheduleSave();
+}
+
+/* 키보드 — 편집기의 다른 키 처리보다 먼저 받습니다 */
+document.addEventListener('keydown', function(e){
+  if (OV.classList.contains('on') || inTextField()) return;
+  const cs = crossSel();
+  if (!cs) return;
+  const k = e.key, mod = e.metaKey || e.ctrlKey;
+  const stop = function(){ e.preventDefault(); e.stopPropagation(); };
+  if (mod && !e.altKey){
+    const lk = k.toLowerCase();
+    const map = {b:'bold', i:'italic', u:'underline'};
+    if (map[lk] && !e.shiftKey){ stop(); crossApply(cs, function(){ document.execCommand(map[lk]); }, map[lk]); return; }
+    if (lk === 'e' && !e.shiftKey){ stop(); crossApply(cs, function(){ toggleCode(); }); return; }
+    if (lk === 'k'){ stop(); askLink(); return; }
+    return;                                /* 복사·잘라내기·되돌리기는 각자 처리기가 받습니다 */
+  }
+  if (e.isComposing) return;
+  if (k === 'Backspace' || k === 'Delete' || k === 'Enter'){ stop(); crossDelete(cs); return; }
+  if (k === 'Escape'){ stop(); const s = window.getSelection(); s.collapseToStart(); return; }
+  if (k === 'ArrowLeft' || k === 'ArrowUp' || k === 'ArrowRight' || k === 'ArrowDown'){
+    if (e.shiftKey) return;
+    stop();
+    const toStart = (k === 'ArrowLeft' || k === 'ArrowUp');
+    const bd = toStart ? cs.sBd : cs.eBd;
+    const off = toStart ? textOffsetIn(cs.sBd, cs.range.startContainer, cs.range.startOffset)
+                        : textOffsetIn(cs.eBd, cs.range.endContainer, cs.range.endOffset);
+    bd.focus({preventScroll:true});
+    caretAtOffset(bd, off);
+    return;
+  }
+  /* 글자를 치면 선택한 부분이 그 글자로 바뀝니다 — 지운 뒤 입력은 브라우저가 이어서 넣습니다 */
+  if (!e.altKey && (k.length === 1 || k === 'Process' || e.keyCode === 229)){
+    e.stopPropagation();
+    crossDelete(cs);
+  }
+}, true);
+/* 키 누름 없이 들어오는 입력(일부 입력기·자동완성)도 같은 방식으로 받습니다 */
+document.addEventListener('beforeinput', function(e){
+  if (inTextField()) return;
+  const cs = crossSel();
+  if (!cs || !e.cancelable) return;
+  const t = e.inputType || '';
+  if (t === 'insertText' || t === 'insertReplacementText' || t.indexOf('delete') === 0 ||
+      t === 'insertParagraph' || t === 'insertLineBreak'){
+    e.preventDefault();
+    crossDelete(cs);
+    if ((t === 'insertText' || t === 'insertReplacementText') && e.data) document.execCommand('insertText', false, e.data);
+  }
+}, true);
+/* 붙여넣기도 먼저 선택을 지운 뒤 평소대로 넣습니다 */
+document.addEventListener('paste', function(e){
+  if (inTextField()) return;
+  const cs = crossSel();
+  if (cs) crossDelete(cs);
+}, true);
 
 /* --- 복사 · 잘라내기 --- */
 function fillClipboard(e, ids){
@@ -3097,12 +3446,27 @@ function fillClipboard(e, ids){
 }
 document.addEventListener('copy', function(e){
   if (inTextField()) return;            /* 캡션·링크 같은 입력칸의 글자 복사는 그대로 둡니다 */
+  const cs = !multi.length && crossSel();
+  if (cs){
+    const pay = crossClipboard(cs);
+    e.preventDefault();
+    try { e.clipboardData.setData('text/plain', pay.text); e.clipboardData.setData('text/html', pay.html); } catch(err){}
+    return;
+  }
   const ids = selectedBlockIds();
   if (!ids.length) return;              /* 한 문단 안의 글자 복사도 브라우저에 맡깁니다 */
   if (fillClipboard(e, ids)) toast(ids.length + '개 블록을 텍스트로 복사했습니다');
 });
 document.addEventListener('cut', function(e){
   if (inTextField()) return;            /* 입력칸에서 잘라내기가 블록을 지우면 안 됩니다 */
+  const cs = !multi.length && crossSel();
+  if (cs){
+    const pay = crossClipboard(cs);
+    e.preventDefault();
+    try { e.clipboardData.setData('text/plain', pay.text); e.clipboardData.setData('text/html', pay.html); } catch(err){}
+    crossDelete(cs);
+    return;
+  }
   const ids = selectedBlockIds();
   if (!ids.length) return;
   if (fillClipboard(e, ids)) deleteBlocks(ids);
@@ -3920,7 +4284,8 @@ document.addEventListener('selectionchange', function(){
   if (!s.rangeCount || s.isCollapsed){ FTB.style.display='none'; return; }
   let n = s.getRangeAt(0).commonAncestorContainer;
   if (n.nodeType === 3) n = n.parentNode;
-  if (!n.closest || !n.closest('.bd')){ FTB.style.display='none'; return; }
+  if ((!n.closest || !n.closest('.bd')) && !crossSel()){ FTB.style.display='none'; return; }
+  if (multi.length){ FTB.style.display='none'; return; }
   const rect = s.getRangeAt(0).getBoundingClientRect();
   if (!rect.width && !rect.height){ FTB.style.display='none'; return; }
   FTB.style.display = 'flex';
@@ -3936,8 +4301,15 @@ FTB.addEventListener('mousedown', function(e){
   const s = window.getSelection();
   if (s.rangeCount) selRange = s.getRangeAt(0).cloneRange();
   if (cmd === 'link'){ askLink(); return; }
-  if (cmd === 'code'){ toggleCode(); return; }
   if (cmd === 'color'){ openPalette(btn); return; }
+  const cs = crossSel();
+  if (cs){
+    if (cmd === 'code') crossApply(cs, function(){ toggleCode(); });
+    else if (cmd === 'unlink') crossApply(cs, function(){ document.execCommand('unlink'); });
+    else crossApply(cs, function(){ document.execCommand(cmd, false, null); }, cmd);
+    return;
+  }
+  if (cmd === 'code'){ toggleCode(); return; }
   document.execCommand('styleWithCSS', false, true);
   document.execCommand(cmd, false, null);
   syncCur();
@@ -4075,13 +4447,17 @@ PAL.addEventListener('mousedown', function(e){
   const s = window.getSelection();
   s.removeAllRanges();
   if (selRange) s.addRange(selRange);
-  document.execCommand('styleWithCSS', false, true);
-  if (btn.dataset.fg !== undefined){
-    document.execCommand('foreColor', false, btn.dataset.fg || state.design.bodyColor);
-  } else if (btn.dataset.bg !== undefined){
-    document.execCommand('hiliteColor', false, btn.dataset.bg || 'transparent');
-  }
-  syncCur();
+  const paint = function(){
+    document.execCommand('styleWithCSS', false, true);
+    if (btn.dataset.fg !== undefined){
+      document.execCommand('foreColor', false, btn.dataset.fg || state.design.bodyColor);
+    } else if (btn.dataset.bg !== undefined){
+      document.execCommand('hiliteColor', false, btn.dataset.bg || 'transparent');
+    }
+  };
+  const cs = crossSel();
+  if (cs) crossApply(cs, paint);
+  else { paint(); syncCur(); }
   PAL.style.display = 'none';
   FTB.style.display = 'none';
 });
@@ -4136,6 +4512,8 @@ function applyLink(m){
   const s = window.getSelection();
   s.removeAllRanges();
   if (selRange) s.addRange(selRange);
+  const cs = crossSel();
+  if (cs){ crossApply(cs, function(){ document.execCommand('createLink', false, url); }); return; }
   document.execCommand('createLink', false, url);
   syncCur();
 }
