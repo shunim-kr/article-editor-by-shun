@@ -435,7 +435,7 @@ body.col-resizing .bd{pointer-events:none}
                 <button data-v="false">고정 크기</button>
                 <button data-v="true">화면 폭에 맞춰 조절</button>
               </div>
-              <div class="hint">켜면 제목·본문이 좁은 화면(휴대폰)에서 자동으로 작아집니다. 아임웹에서 동작을 확인해 <b>기본으로 켜 두었습니다.</b></div>
+              <div class="hint">켜면 제목·본문이 좁은 화면(휴대폰)에서 자동으로 작아집니다. <b>아임웹이 이 크기 값을 지워 제목이 아주 크게 나오는 문제가 있어 꺼 두었습니다.</b> 켜지 마세요.</div>
             </div>
           </div>
           <div class="grp">
@@ -584,7 +584,7 @@ const DEFAULT_DESIGN = {
   brand:'#1A73E8',
   bodySize:17, bodyLh:1.8, bodyColor:'#222222', pGap:24,
   h2s:28, h2m:32, h3s:22, h3m:24, h4s:19, h4m:20, headColor:'#111111',
-  col:760, resp:true, colMode:'table', respV:2
+  col:760, resp:false, colMode:'table', respV:3
 };
 
 const TYPES = {
@@ -5376,10 +5376,10 @@ function loadLocal(){
 function normalize(o){
   const savedRespV = (o.design && o.design.respV) || 0;      /* 기본값을 섞기 전에 봐야 합니다 */
   o.design = Object.assign({}, DEFAULT_DESIGN, o.design || {});
-  /* 2026-10-01 아임웹 확인을 마치고 '화면 폭에 맞춰 조절'을 기본으로 켰습니다.
-     예전에 저장된 설정에는 꺼짐이 남아 있으므로 한 번만 켜 줍니다. 그 뒤 끄면 그대로 둡니다. */
-  if (savedRespV < 2){ o.design.resp = true; o.design.respV = 2; }
-  if (typeof o.design.resp !== 'boolean') o.design.resp = true;
+  /* '화면 폭에 맞춰 조절'(clamp)은 아임웹이 지워 제목이 테마 기본 크기로 커지는 것이 확인돼
+     2026-10-01 다시 기본 꺼짐으로 돌렸습니다. 그날 켜졌던 설정도 한 번만 꺼 줍니다. */
+  if (savedRespV < 3){ o.design.resp = false; o.design.respV = 3; }
+  if (typeof o.design.resp !== 'boolean') o.design.resp = false;
   if (o.design.colMode !== 'flex') o.design.colMode = 'table';
   o.meta   = Object.assign({title:'', kw:''}, o.meta || {});
   o.images = o.images || [];
