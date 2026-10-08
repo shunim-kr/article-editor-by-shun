@@ -550,6 +550,8 @@ body.col-resizing .bd{pointer-events:none}
             <code>/2열</code> · <code>/3열</code> 로 좌우 배치를 만듭니다. 콜아웃·토글 안에서도 됩니다. <b>좁은 화면에서는 자동으로 세로로 쌓입니다.</b> 열 개수는 <code>⠿</code> 메뉴에서 바꿀 수 있고, 줄이면 남는 내용이 마지막 열로 합쳐집니다.<br><br>
             <b style="color:var(--ink)">콜아웃 · 토글 안에 블록 넣기</b><br>
             상자 안에서 엔터로 줄을 늘리고 <code>/</code> 로 제목·목록·버튼·구분선·이미지를 넣을 수 있습니다. 상자 안에 상자는 넣을 수 없습니다.<br><br>
+            <b style="color:var(--ink)">토글 제목 크기</b><br>
+            <code>/토글 제목 2</code> 처럼 넣거나, 만든 토글의 <code>⠿</code> → <b>제목 크기</b>에서 기본·H2·H3·H4 를 고릅니다. 제목 블록 맨 앞에 <code>&gt;&nbsp;</code> 를 쳐도 같은 크기의 토글이 됩니다(노션과 같음). 발행본에서도 진짜 제목(H 태그)으로 들어가 검색에 잡힙니다.<br><br>
             <b style="color:var(--ink)">콜아웃 · 토글</b><br>
             안에서는 엔터가 줄바꿈입니다. 빈 줄에서 한 번 더 엔터를 치면 블록을 빠져나옵니다. 콜아웃 이모지는 클릭해서 바꾸거나 없앨 수 있습니다.
           </div>
@@ -882,15 +884,28 @@ function codeStyle(){
 function innerTextStyle(d){
   return {'font-family':FONT,'font-size':fluid(Math.max(14,d.bodySize-1),0.9),'line-height':1.75,'color':'#333333',margin:'0'};
 }
-function toggleTitleStyle(d){
+/* 토글 제목 — 기본(굵은 본문 크기) 또는 제목 2·3·4 크기 (노션의 '토글 제목') */
+function toggleHL(b){ return (b && /^h[234]$/.test(b.hl)) ? b.hl : ''; }
+function toggleTitlePx(d, b){
+  const hl = toggleHL(b);
+  return hl ? d[hl + 's'] : Math.max(15, d.bodySize);
+}
+function toggleTitleStyle(d, b){
+  const hl = toggleHL(b);
+  if (hl) return {'font-family':FONT,'font-size':fluid(toggleTitlePx(d, b),0.78),'font-weight':700,'color':d.headColor,'line-height':1.4,'cursor':'pointer'};
   return {'font-family':FONT,'font-size':fluid(Math.max(15,d.bodySize),0.9),'font-weight':700,'color':d.headColor,'line-height':1.5,'cursor':'pointer'};
+}
+/* 제목 칸 안의 H 태그 — 화살표와 한 줄에 놓이도록 inline 으로 둡니다 */
+function toggleHeadTagStyle(d, b){
+  return {'display':'inline','font-family':FONT,'font-size':fluid(toggleTitlePx(d, b),0.78),'font-weight':700,
+          'color':d.headColor,'line-height':1.4,'margin':'0','padding':'0'};
 }
 /* 발행본의 토글 화살표(브라우저 기본 표시)가 차지하는 폭 — 제목 글자 크기의 약 1.06배.
    안쪽 내용을 이만큼 들여써서 제목 글자 시작점에 맞춥니다 (노션과 같은 모양). */
-function toggleIndent(d){ return Math.round(Math.max(15, d.bodySize) * 1.06); }
-function toggleBodyStyle(d){
+function toggleIndent(d, b){ return Math.round(toggleTitlePx(d, b) * 1.06); }
+function toggleBodyStyle(d, b){
   /* 안쪽 블록이 각자 글자 스타일을 가지므로 껍데기는 여백·들여쓰기만 담당합니다 */
-  return {'margin':'12px 0 0', 'padding-left': toggleIndent(d) + 'px'};
+  return {'margin':'12px 0 0', 'padding-left': toggleIndent(d, b) + 'px'};
 }
 const BTN_SIZE = {sm:{p:'12px 24px', f:15}, md:{p:'16px 32px', f:16}, lg:{p:'19px 40px', f:18}};
 function btnStyle(b, d){
@@ -1146,9 +1161,12 @@ function exportBlock(b, d){
       const title = cleanInline(b.title, d, true) || '제목 없음';
       const inner = exportChildren(b.children || [], d);
       if (!inner && !cleanInline(b.title, d)) return '';
+      const hl = toggleHL(b);
+      /* 제목 크기를 고른 토글은 summary 안에 진짜 H 태그를 넣습니다 — 검색엔진도 제목으로 읽습니다 */
+      const head = hl ? '<'+hl+' style="'+S(toggleHeadTagStyle(d, b))+'">'+title+'</'+hl+'>' : title;
       return '<details style="'+S(blockStyle(b,d))+'">\n'+
-        '<summary style="'+S(toggleTitleStyle(d))+'">'+title+'</summary>\n'+
-        '<div style="'+S(toggleBodyStyle(d))+'">'+inner+'</div>\n</details>';
+        '<summary style="'+S(toggleTitleStyle(d, b))+'">'+head+'</summary>\n'+
+        '<div style="'+S(toggleBodyStyle(d, b))+'">'+inner+'</div>\n</details>';
     }
     case 'ul': case 'ol': {
       const box = document.createElement(b.type);
@@ -1584,16 +1602,16 @@ function renderBlock(b, d, nested){
     head.className = 'tg-head';
     const arw = document.createElement('button');
     arw.className = 'tg-arw';
-    arw.style.flexBasis = toggleIndent(d) + 'px';      /* 발행본 화살표 폭과 같게 — 제목 시작점이 맞습니다 */
+    styleToggleArrow(arw, d, b);                        /* 발행본 화살표 폭과 같게 — 제목 시작점이 맞습니다 */
     arw.dataset.a = 'tgfold';
     arw.textContent = b.open === false ? '▶' : '▼';
     arw.title = b.open === false ? '펼치기' : '접기';
     head.appendChild(arw);
-    head.appendChild(mkEditable('div','tg-title','title', toggleTitleStyle(d), '토글 제목', b.title));
+    head.appendChild(mkEditable('div','tg-title','title', toggleTitleStyle(d, b), toggleHL(b) ? '토글 제목 ' + toggleHL(b)[1] : '토글 제목', b.title));
     box.appendChild(head);
     const tbody = document.createElement('div');
     tbody.className = 'tg-body bx-body';
-    tbody.setAttribute('style', css(toggleBodyStyle(d)));
+    tbody.setAttribute('style', css(toggleBodyStyle(d, b)));
     (b.children || []).forEach(function(c){ tbody.appendChild(renderBlock(c, d, true)); });
     if (b.open === false) tbody.style.display = 'none';
     box.appendChild(tbody);
@@ -1618,6 +1636,15 @@ function renderBlock(b, d, nested){
     if (sel === b.id) w.appendChild(inspector(b));
   }
   return w;
+}
+
+/* 편집기 토글 화살표 — 폭은 발행본 화살표와 같게, 높이·크기는 제목 첫 줄에 맞춥니다 */
+function styleToggleArrow(arw, d, b){
+  const px = toggleTitlePx(d, b);
+  const hl = toggleHL(b);
+  arw.style.flexBasis = toggleIndent(d, b) + 'px';
+  arw.style.height = Math.round(px * (hl ? 1.4 : 1.5)) + 'px';
+  arw.style.fontSize = Math.max(11, Math.round(px * 0.6)) + 'px';
 }
 
 /* 표 — 출력과 같은 스타일에, 편집용 손잡이만 얹습니다.
@@ -1907,12 +1934,12 @@ function restyle(){
       const box = w.querySelector(':scope > .tg');
       if (box) box.setAttribute('style', css(blockStyle(b,d)));
       const t = w.querySelector(':scope > .tg > .tg-head > .bd[data-f="title"]');
-      if (t) t.setAttribute('style', css(toggleTitleStyle(d)));
+      if (t) t.setAttribute('style', css(toggleTitleStyle(d, b)));
       const aw = w.querySelector(':scope > .tg > .tg-head > .tg-arw');
-      if (aw) aw.style.flexBasis = toggleIndent(d) + 'px';
+      if (aw) styleToggleArrow(aw, d, b);
       const body = w.querySelector(':scope > .tg > .tg-body');
       if (body){
-        body.setAttribute('style', css(toggleBodyStyle(d)));
+        body.setAttribute('style', css(toggleBodyStyle(d, b)));
         if (b.open === false) body.style.display = 'none';
       }
     } else if (b.type === 'table'){
@@ -2174,6 +2201,16 @@ EDITOR.addEventListener('input', function(e){
   setF(b, f, bd.innerHTML);
 
   if (b.type === 'p' && f === 'html' && applyMarkdown(b, bd)) return;
+  if (/^h[234]$/.test(b.type) && f === 'html'){
+    const m = bd.textContent.match(/^>[\s\u00a0](.*)$/);
+    if (m){
+      b.hl = b.type; b.type = 'toggle'; b.title = esc(m[1]); b.open = true;
+      delete b.html; delete b.align;
+      b.children = [newBlock('p')];
+      hideMenu(); focusNext = {id:b.id, field:'title', at:'end'};
+      render(); scheduleSave(); return;
+    }
+  }
   if (b.type !== 'table') updateMenuFilter(bd);      /* 표 칸에서는 / 메뉴를 열지 않습니다 (노션과 동일) */
   scheduleSave();
 });
@@ -2424,6 +2461,9 @@ const MENU_ITEMS = [
   {g:'글', t:'p'}, {g:'글', t:'h2'}, {g:'글', t:'h3'}, {g:'글', t:'h4'},
   {g:'글', t:'ul'}, {g:'글', t:'ol'}, {g:'글', t:'quote'},
   {g:'묶음', t:'callout'}, {g:'묶음', t:'toggle'},
+  {g:'묶음', t:'toggle', hl:'h2', label:'토글 제목 2', hint:'대제목 크기로 접었다 펼치기'},
+  {g:'묶음', t:'toggle', hl:'h3', label:'토글 제목 3', hint:'중제목 크기로 접었다 펼치기'},
+  {g:'묶음', t:'toggle', hl:'h4', label:'토글 제목 4', hint:'소제목 크기로 접었다 펼치기'},
   {g:'삽입', t:'image'}, {g:'삽입', t:'table'}, {g:'삽입', t:'button'}, {g:'삽입', t:'hr'},
   {g:'삽입', t:'space'}, {g:'삽입', t:'youtube'},
   {g:'배치', t:'columns', n:2, label:'2열'}, {g:'배치', t:'columns', n:3, label:'3열'}
@@ -2524,7 +2564,7 @@ function drawMenu(){
       if (!menuQuery && menuMode !== 'convert' && it.g !== lastG){ h += '<div class="sh">'+it.g+'</div>'; lastG = it.g; }
       h += '<div class="si'+(i===menuPos?' on':'')+'" data-i="'+i+'">'+
            '<div class="ico">'+TYPES[it.t].icon+'</div>'+
-           '<div class="tx"><b>'+esc(it.label || TYPES[it.t].label)+'</b><i>'+(menuMode==='convert' ? CONV_HINT[it.t] : M_HINT[it.t])+'</i></div>'+
+           '<div class="tx"><b>'+esc(it.label || TYPES[it.t].label)+'</b><i>'+(menuMode==='convert' ? CONV_HINT[it.t] : (it.hint || M_HINT[it.t]))+'</i></div>'+
            (it.t === curType ? '<span class="cur">현재</span>' : '')+'</div>';
     });
   }
@@ -2625,11 +2665,11 @@ function pickMenu(){
   const objType = !TYPES[it.t].text && !TYPES[it.t].list && !TYPES[it.t].box && !TYPES[it.t].cols;
   let target;
   if (mode === 'slash' && isBlank(b.html) && TYPES[b.type].text && !TYPES[b.type].multi){
-    target = newBlock(it.t, it.n ? {cols:it.n} : null); target.id = b.id;
+    target = newBlock(it.t, it.n ? {cols:it.n} : (it.hl ? {hl:it.hl} : null)); target.id = b.id;
     const own = listOf(b.id) || state.blocks;
     own[own.indexOf(b)] = target;
   } else {
-    target = newBlock(it.t, it.n ? {cols:it.n} : null);
+    target = newBlock(it.t, it.n ? {cols:it.n} : (it.hl ? {hl:it.hl} : null));
     insertAfter(b, target);
   }
   if (it.t === 'table'){
@@ -2734,6 +2774,7 @@ function convertBlock(b, target){
     const nb = newBlock('toggle');
     nb.id = b.id;
     nb.title = texts[0] || '';                   /* 첫 줄이 토글 제목으로 들어갑니다 */
+    if (/^h[234]$/.test(b.type)) nb.hl = b.type;  /* 제목을 토글로 바꾸면 제목 크기 그대로 (노션의 토글 제목) */
     const rest = texts.slice(1);
     nb.children = rest.length ? rest.map(function(t){ return newBlock('p', {html:t}); }) : [newBlock('p')];
     own[i] = nb;
@@ -2804,6 +2845,12 @@ function openGripMenu(b, btn){
     '<div class="tip"><b>⠿ 를 잡고 끌면</b> 원하는 자리로 바로 옮길 수 있어요</div>'+
     (canConvert(b) ? '<button data-g="conv"><i>⇄</i>전환<span>제목·토글·콜아웃…</span></button>' : '')+
     (canColor(b) ? '<button data-g="bg"><i>◧</i>배경색<span>'+esc(bgName(b))+'</span></button>' : '')+
+    (b.type === 'toggle'
+      ? '<div class="gt2">제목 크기</div><div class="gseg">'+
+          [['','기본'],['h2','H2'],['h3','H3'],['h4','H4']].map(function(o){
+            return '<button data-g="thl:'+o[0]+'"'+(toggleHL(b)===o[0]?' class="on"':'')+'>'+o[1]+'</button>';
+          }).join('')+'</div>'
+      : '')+
     (b.type === 'columns'
       ? '<button data-g="c2"><i>▥</i>2열로'+(b.children.length===2?'<span>현재</span>':'')+'</button>'+
         '<button data-g="c3"><i>▦</i>3열로'+(b.children.length===3?'<span>현재</span>':'')+'</button>'+
@@ -2838,6 +2885,15 @@ GM.addEventListener('click', function(e){
   const own = listOf(b.id) || state.blocks;
   const i = own.indexOf(b), a = btn.dataset.g;
   if (a === 'cgap'){ GM.style.display='none'; cycleColGap(b); return; }
+  if (a && a.indexOf('thl:') === 0){
+    GM.style.display = 'none';
+    flushHistory();
+    const v = a.slice(4);
+    if (v) b.hl = v; else delete b.hl;
+    render(); scheduleSave();
+    toast(v ? '토글 제목을 ' + v.toUpperCase() + ' 크기로 바꿨습니다' : '토글 제목을 기본 크기로 바꿨습니다');
+    return;
+  }
   if (a && a.indexOf('al:') === 0){
     GM.style.display = 'none';
     const group = (multi.length > 1 && multi.indexOf(b.id) >= 0)
@@ -5121,7 +5177,13 @@ function impNode(el, out){
     }
     const sm = el.querySelector('summary');
     const body = el.querySelector('div');
-    b.title = sm ? impInline(sm) : '';
+    const hTag = sm ? sm.querySelector('h1,h2,h3,h4,h5,h6') : null;
+    if (hTag){
+      b.hl = 'h' + Math.min(4, Math.max(2, parseInt(hTag.tagName[1], 10)));
+      b.title = impInline(hTag);
+    } else {
+      b.title = sm ? impInline(sm) : '';
+    }
     if (body) impChildrenInto(body, b);
     else b.children = [newBlock('p')];
     if (b.title || (b.children && b.children.some(function(c){ return !isBlank(c.html) || c.type !== 'p'; }))) out.push(b);
