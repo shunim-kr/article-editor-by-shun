@@ -76,7 +76,7 @@ footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
 /* 인쇄 — A4 한 장 */
 @page{size:A4 portrait;margin:9mm}
 @media print{
-  body{background:#fff;font-size:7.7pt;line-height:1.38}
+  body{background:#fff;font-size:7.5pt;line-height:1.36}
   .page{max-width:none;padding:0}
   header{margin-bottom:6pt}
   h1{font-size:15pt;margin:0}
@@ -96,7 +96,7 @@ footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
   ul{padding-left:11pt}
   li{margin-bottom:1pt}
   .k{font-size:6.8pt;padding:0 3pt;border-bottom-width:1px}
-  table.t{font-size:7.4pt;margin:2pt 0 3pt}
+  table.t{font-size:7.2pt;margin:2pt 0 3pt}
   table.t td{padding:1pt 0}
   .warn,.tip{font-size:7.4pt;padding:3pt 5pt;margin-top:3pt;border-radius:5pt}
   footer{display:none}
@@ -137,7 +137,7 @@ footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
       <tr><td>콜아웃 박스</td><td>이모지가 붙은 강조 상자</td></tr>
       <tr><td>토글</td><td>눌러서 접었다 펴는 블록</td></tr>
       <tr><td>2열 · 3열</td><td>내용을 좌우로 나란히</td></tr>
-      <tr><td>이미지 · 표 · 버튼</td><td>아래 5·6·7번 참고</td></tr>
+      <tr><td>이미지 · 표 · 버튼</td><td>아래 4·5·6번 참고</td></tr>
       <tr><td>구분선 · 여백 · 유튜브</td><td>가로선, 빈 공간, 영상</td></tr>
     </table>
   </section>
@@ -161,24 +161,14 @@ footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
       <tr><td>코드 표시</td><td><span class="k">⌘E</span> — 회색 바탕의 강조</td></tr>
       <tr><td>글자색 · 형광펜</td><td>서식 바의 <b>A</b></td></tr>
       <tr><td>링크</td><td><span class="k">⌘K</span> 또는 🔗, 해제는 ⊘</td></tr>
+      <tr><td>정렬</td><td>서식 바 끝의 왼쪽·가운데·오른쪽, 또는 <span class="k">⠿</span> 메뉴</td></tr>
     </table>
     <p class="dim">윈도우에서는 <span class="k">⌘</span> 대신 <span class="k">Ctrl</span>을 누릅니다.</p>
-  </section>
-  <section class="card">
-    <h2><span class="n">4</span>블록 옮기기 · 고치기</h2>
-    <p>블록에 마우스를 올리면 왼쪽에 <span class="k">＋</span> <span class="k">⠿</span> 가 나옵니다.</p>
-    <ul>
-      <li><span class="k">⠿</span> 를 <b>잡고 끌면</b> 원하는 자리로 이동</li>
-      <li><span class="k">⠿</span> 를 <b>누르면</b> 메뉴: <span class="ui">전환</span>(본문↔제목·목록·콜아웃 등), <span class="ui">배경색</span>(콜아웃·토글), 위로·아래로·<span class="ui">복제</span>·<span class="ui">삭제</span></li>
-      <li>여러 블록: 글 바깥 <b>빈 곳에서 끌어</b> 고른 뒤 <span class="k">Backspace</span>로 삭제, <span class="k">⠿</span>로 함께 이동</li>
-      <li>콜아웃·토글·열 <b>안에서도</b> <span class="k">/</span>로 제목·목록·이미지·표를 넣을 수 있습니다. 콜아웃 이모지는 눌러서 바꿉니다</li>
-    </ul>
-    <p><span class="k">⌘Z</span> 되돌리기 · <span class="k">⇧⌘Z</span> 다시 실행. 지운 블록도 되살아납니다.</p>
   </section>
  </div>
  <div class="col">
   <section class="card">
-    <h2><span class="n">5</span>이미지 — 아임웹에 먼저 올립니다</h2>
+    <h2><span class="n">4</span>이미지 — 아임웹에 먼저 올립니다</h2>
     <p>편집기는 사진 파일을 직접 올리지 못합니다. 아임웹에 올린 사진의 <b>주소</b>를 가져와 씁니다.</p>
     <ul>
       <li>아임웹 글쓰기 화면에 쓸 사진을 <b>모두 업로드</b>합니다 (글은 안 써도 됩니다)</li>
@@ -190,7 +180,7 @@ footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
     <div class="tip">사진이 아직 없으면 방식을 <b>자리표시자</b>로 두세요. 회색 상자로 자리만 잡아두고, 아임웹에서 나중에 바꿔 끼웁니다.</div>
   </section>
   <section class="card">
-    <h2><span class="n">6</span>표</h2>
+    <h2><span class="n">5</span>표</h2>
     <table class="t">
       <tr><td><span class="k">Tab</span></td><td>다음 칸 (마지막 칸이면 새 행)</td></tr>
       <tr><td><span class="k">Enter</span></td><td>아래 칸 (마지막 행이면 새 행)</td></tr>
@@ -205,12 +195,23 @@ footer{margin-top:4px;color:var(--mute);font-size:12px;text-align:center}
     <p class="dim">엑셀·구글 시트에서 복사해 붙이면 그대로 표가 됩니다. 휴대폰에서는 표를 옆으로 밀어서 봅니다.</p>
   </section>
   <section class="card">
-    <h2><span class="n">7</span>버튼 · 유튜브</h2>
+    <h2><span class="n">6</span>버튼 · 유튜브</h2>
     <p>편집기에서 누르면 링크로 넘어가지 않고 <b>설정창</b>이 열립니다.</p>
     <ul>
       <li><b>버튼</b>: 문구, 링크, 모양(사각·라운드·캡슐), 크기, 정렬, 색, 꽉 채우기. 링크는 <span class="ui">열어보기</span>로 확인</li>
       <li><b>유튜브</b>: 영상 주소를 붙여넣습니다 (일반·youtu.be·쇼츠 모두 됨). 편집기에선 재생되지 않고, 발행하면 재생됩니다</li>
     </ul>
+  </section>
+  <section class="card">
+    <h2><span class="n">7</span>블록 옮기기 · 고치기</h2>
+    <p>블록에 마우스를 올리면 왼쪽에 <span class="k">＋</span> <span class="k">⠿</span> 가 나옵니다.</p>
+    <ul>
+      <li><span class="k">⠿</span> 를 <b>잡고 끌면</b> 원하는 자리로 이동</li>
+      <li><span class="k">⠿</span> 를 <b>누르면</b> 메뉴: <span class="ui">전환</span>(본문↔제목·목록·콜아웃 등), <span class="ui">배경색</span>(콜아웃·토글), 위로·아래로·<span class="ui">복제</span>·<span class="ui">삭제</span></li>
+      <li>여러 블록: 글 바깥 <b>빈 곳에서 끌어</b> 고른 뒤 <span class="k">Backspace</span>로 삭제, <span class="k">⠿</span>로 함께 이동</li>
+      <li>콜아웃·토글·열 <b>안에서도</b> <span class="k">/</span>로 제목·목록·이미지·표를 넣을 수 있습니다. 콜아웃 이모지는 눌러서 바꿉니다</li>
+    </ul>
+    <p><span class="k">⌘Z</span> 되돌리기 · <span class="k">⇧⌘Z</span> 다시 실행. 지운 블록도 되살아납니다.</p>
   </section>
  </div>
  <div class="col">
