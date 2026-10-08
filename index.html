@@ -490,6 +490,30 @@ body.col-resizing .bd{pointer-events:none}
         </div>
       </details>
 
+      <details class="pnl">
+        <summary><span class="arw">▶</span>AI 대체 텍스트</summary>
+        <div class="in">
+          <div class="fld">
+            <label>Anthropic API 키</label>
+            <div class="linkrow">
+              <input type="password" id="aiKey" placeholder="sk-ant-로 시작하는 키" autocomplete="off">
+              <button class="btn sm" id="aiKeySave">저장</button>
+            </div>
+            <div class="hint" id="aiKeyHint"></div>
+          </div>
+          <div class="fld">
+            <label>자동 작성</label>
+            <div class="seg" id="segAiAuto">
+              <button data-v="true">이미지 넣으면 바로</button>
+              <button data-v="false">버튼 눌렀을 때만</button>
+            </div>
+          </div>
+          <div class="empty">이미지를 넣으면 Claude 가 <b>사진과 앞뒤 본문</b>을 함께 보고 대체 텍스트를 씁니다. 직접 쓴 대체 텍스트는 덮어쓰지 않습니다.
+          이미지 설정창의 <b>✨ AI로 작성</b> 으로 언제든 다시 쓸 수 있습니다.<br>
+          <span style="color:#9aa4b0">키는 <b>이 브라우저에만</b> 저장되고, 원고 파일(.json)이나 다른 사람에게는 가지 않습니다. 이미지 한 장에 약 2센트(30원 안팎)의 사용료가 듭니다.</span></div>
+        </div>
+      </details>
+
       <details class="pnl" open>
         <summary><span class="arw">▶</span>발행 전 점검</summary>
         <div class="in"><div id="checks"></div></div>
@@ -1810,7 +1834,9 @@ function inspector(b){
     } else {
       h += fld('파일명 표기', txt('name', b.name, 'hero-parking.jpg'));
     }
-    h += fld('대체 텍스트 (필수)', txt('alt', b.alt, '이미지를 설명하는 문장'));
+    h += fld('대체 텍스트 (필수)',
+      '<div class="linkrow">'+txt('alt', b.alt, altBusy.has(b.id) ? 'AI가 쓰는 중…' : '이미지를 설명하는 문장')+
+      '<button class="btn sm" data-a="aialt"'+(altBusy.has(b.id)?' disabled':'')+' title="사진과 앞뒤 본문을 보고 Claude 가 작성합니다">'+(altBusy.has(b.id)?'작성 중…':'✨ AI로 작성')+'</button></div>');
     h += fld('캡션 (선택)', txt('caption', b.caption, '사진 설명 ⓒ스위트스팟'));
   }
   if (b.type === 'button'){
@@ -1861,8 +1887,14 @@ function inspector(b){
     }
     refreshObj(b); scheduleSave();
   });
+  /* 주소를 다 넣고 칸을 벗어나면, 대체 텍스트가 비어 있을 때 AI 가 씁니다 */
+  el.addEventListener('change', function(e){
+    if (b.type === 'image' && e.target.dataset && e.target.dataset.k === 'url') maybeAutoAlt(b);
+  });
   el.addEventListener('click', function(e){
     e.stopPropagation();
+    const ai = e.target.closest('[data-a="aialt"]');
+    if (ai){ if (!ai.disabled) generateAlt(b, true); return; }
     const ol = e.target.closest('[data-a="openlink"]');
     if (ol){
       if (ol.disabled) return;
@@ -1899,6 +1931,7 @@ function inspector(b){
         const urlInput = el.querySelector('input[data-k="url"]');
         if (urlInput) urlInput.value = im.url;
         refreshObj(b); scheduleSave();
+        maybeAutoAlt(b);
       }
     }
   });
@@ -4796,6 +4829,7 @@ $('#pool').addEventListener('click', function(e){
   sel = nb.id; render(); scheduleSave();
   const w = EDITOR.querySelector('.blk[data-id="'+nb.id+'"]');
   if (w) w.scrollIntoView({block:'center', behavior:'smooth'});
+  maybeAutoAlt(nb);
 });
 
 $('#bImportHtml').addEventListener('click', function(){
@@ -4926,6 +4960,167 @@ $('#bHtml').addEventListener('click', function(){
     onOpen:function(m){ $('#outHtml', m).style.minHeight = '260px'; }
   });
 });
+
+/* ==================================================================
+   AI 대체 텍스트 — Claude 가 사진과 앞뒤 본문을 보고 alt 를 씁니다.
+   키는 각자 브라우저에만 저장합니다(원고 JSON·자동 저장과 분리). 공개 저장소라 코드에 키를 두지 않습니다.
+   ================================================================== */
+const AI_KEY = 'sweetspot-editor-anthropic-key';
+const AI_AUTO = 'sweetspot-editor-ai-auto';
+const AI_MODEL = 'claude-opus-5-5';
+const AI_SDK = 'https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@0.132.1/+esm';
+const altBusy = new Set();
+let aiSdk = null, aiKeyMem = '';     /* 브라우저 저장이 막힌 경우엔 창을 닫을 때까지만 기억합니다 */
+function aiKey(){ try { return localStorage.getItem(AI_KEY) || aiKeyMem; } catch(e){ return aiKeyMem; } }
+function aiAuto(){ try { return localStorage.getItem(AI_AUTO) !== 'false'; } catch(e){ return true; } }
+function syncAiPanel(){
+  const k = aiKey();
+  $('#aiKeyHint').innerHTML = k
+    ? '<span style="color:#15803d">저장됨</span> · ' + esc(k.slice(0, 7)) + '…' + esc(k.slice(-4)) +
+      ' <a href="#" id="aiKeyDel" style="color:#c2410c;margin-left:6px">지우기</a>'
+    : '키가 없습니다. <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Anthropic 콘솔</a>에서 발급하거나 회사에서 받은 키를 넣어주세요.';
+  $('#aiKey').value = '';
+  $$('#segAiAuto button').forEach(function(x){ x.classList.toggle('on', String(aiAuto()) === x.dataset.v); });
+}
+$('#aiKeySave').addEventListener('click', function(){
+  const v = ($('#aiKey').value || '').trim();
+  if (!v){ toast('키를 붙여넣어 주세요'); return; }
+  if (!/^sk-ant-/.test(v)){ toast('sk-ant- 로 시작하는 Anthropic API 키가 아닙니다'); return; }
+  let kept = true;
+  try { localStorage.setItem(AI_KEY, v); } catch(e){ kept = false; }
+  aiKeyMem = v;
+  syncAiPanel();
+  toast(kept ? 'API 키를 저장했습니다' : '이 브라우저는 저장이 막혀 있어, 창을 닫기 전까지만 키를 기억합니다');
+});
+$('#aiKeyHint').addEventListener('click', function(e){
+  if (e.target.id !== 'aiKeyDel') return;
+  e.preventDefault();
+  try { localStorage.removeItem(AI_KEY); } catch(err){}
+  aiKeyMem = '';
+  syncAiPanel(); toast('API 키를 지웠습니다');
+});
+$('#segAiAuto').addEventListener('click', function(e){
+  const btn = e.target.closest('button'); if (!btn) return;
+  try { localStorage.setItem(AI_AUTO, btn.dataset.v); } catch(err){}
+  syncAiPanel();
+});
+
+/* 이미지 앞뒤의 글 — 가장 가까운 제목, 바로 앞 문단들, 바로 뒤 문단 */
+function altContext(b){
+  const flat = flatBlocks();
+  const i = flat.indexOf(b);
+  const clip = function(t, n){ t = String(t || '').replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n) + '…' : t; };
+  let heading = '';
+  for (let k = i - 1; k >= 0; k--){
+    const x = flat[k];
+    if (/^h[234]$/.test(x.type)){ heading = blockPlainText(x); break; }
+    if (x.type === 'toggle' && x.hl){ heading = blockPlainText(x).split('\n')[0]; break; }
+  }
+  const before = [], after = [];
+  let n = 0;
+  for (let k = i - 1; k >= 0 && n < 700; k--){
+    const x = flat[k];
+    if (x.type === 'image' || x.type === 'col' || x.type === 'columns' || x.type === 'callout' || x.type === 'toggle') continue;
+    const t = blockPlainText(x); if (!t) continue;
+    before.unshift(t); n += t.length;
+  }
+  n = 0;
+  for (let k = i + 1; k < flat.length && n < 400; k++){
+    const x = flat[k];
+    if (x.type === 'image' || x.type === 'col' || x.type === 'columns' || x.type === 'callout' || x.type === 'toggle') continue;
+    const t = blockPlainText(x); if (!t) continue;
+    after.push(t); n += t.length;
+  }
+  return {
+    title: clip(state.meta.title, 120), keywords: clip(state.meta.kw, 200), heading: clip(heading, 120),
+    before: clip(before.join('\n'), 900), after: clip(after.join('\n'), 500),
+    caption: clip((function(){ const d = document.createElement('div'); d.innerHTML = b.caption || ''; return d.textContent; })(), 200),
+    file: clip(b.name, 120)
+  };
+}
+const ALT_SYSTEM =
+  '당신은 한국어 아티클의 웹 접근성·검색 편집자입니다. 글에 들어간 이미지의 대체 텍스트(alt) 한 문장을 씁니다.\n' +
+  '- 화면을 볼 수 없는 독자가 이 자리에서 무엇을 놓치는지 알 수 있게, 사진에 실제로 보이는 것을 중심으로 쓰고 본문 맥락에서 이 사진이 보여주는 바를 드러냅니다.\n' +
+  '- 한 문장, 40~100자 안팎. "이미지", "사진" 같은 말로 시작하지 않습니다.\n' +
+  '- 사진에서 확인할 수 없는 고유명사·수치는 본문에 근거가 있을 때만 씁니다. 지어내지 않습니다.\n' +
+  '- 키워드는 자연스러울 때만 넣습니다. 나열하지 않습니다.\n' +
+  '- 대체 텍스트 문장만 출력합니다. 따옴표나 설명을 붙이지 않습니다.';
+async function aiClient(){
+  if (!aiSdk) aiSdk = await import(AI_SDK);
+  const Anthropic = aiSdk.default;
+  return {Anthropic: Anthropic, client: new Anthropic({apiKey: aiKey(), dangerouslyAllowBrowser: true})};
+}
+function maybeAutoAlt(b){
+  if (!b || b.type !== 'image' || b.alt || b.mode !== 'url' || !b.url) return;
+  if (!aiKey() || !aiAuto()) return;
+  generateAlt(b, false);
+}
+function refreshAltUI(b){
+  if (sel === b.id) refreshInspector(b);
+}
+async function generateAlt(b, force){
+  if (!b || b.type !== 'image' || altBusy.has(b.id)) return;
+  if (!aiKey()){
+    toast('왼쪽 「AI 대체 텍스트」에 API 키를 먼저 넣어주세요');
+    const pnl = $('#aiKey').closest('details'); if (pnl) pnl.open = true;
+    if (window.innerWidth <= 820) document.body.classList.add('side-open');
+    $('#aiKey').focus();
+    return;
+  }
+  const ctx = altContext(b);
+  const hasImage = b.mode === 'url' && /^https?:\/\//i.test(String(b.url || ''));
+  const lines = [
+    '아티클 제목: ' + (ctx.title || '(없음)'),
+    ctx.keywords ? '키워드: ' + ctx.keywords : '',
+    ctx.heading ? '이미지가 속한 소제목: ' + ctx.heading : '',
+    ctx.before ? '이미지 바로 앞 본문:\n' + ctx.before : '',
+    ctx.after ? '이미지 바로 뒤 본문:\n' + ctx.after : '',
+    ctx.caption ? '캡션: ' + ctx.caption : '',
+    ctx.file ? '파일명: ' + ctx.file : '',
+    hasImage ? '위 사진의 대체 텍스트를 써주세요.'
+             : '사진은 아직 없습니다(자리표시자). 본문 맥락과 파일명으로 이 자리에 들어갈 사진을 설명하는 대체 텍스트를 써주세요.'
+  ].filter(Boolean).join('\n\n');
+  const content = [];
+  if (hasImage) content.push({type:'image', source:{type:'url', url:b.url}});
+  content.push({type:'text', text:lines});
+
+  altBusy.add(b.id); refreshAltUI(b);
+  let A = null;
+  try {
+    const c = await aiClient(); A = c.Anthropic;
+    /* 안전 분류기가 거절하면 서버가 알맞은 모델로 다시 돌립니다 (fallbacks: "default") */
+    const res = await c.client.beta.messages.create({
+      model: AI_MODEL,
+      max_tokens: 4000,
+      output_config: {effort: 'low'},
+      betas: ['server-side-fallback-2026-07-01'],
+      fallbacks: 'default',
+      system: ALT_SYSTEM,
+      messages: [{role:'user', content: content}]
+    });
+    if (res.stop_reason === 'refusal'){ toast('이 이미지에는 대체 텍스트를 쓰지 못했습니다. 직접 적어주세요'); return; }
+    const text = res.content.filter(function(x){ return x.type === 'text'; }).map(function(x){ return x.text; }).join(' ')
+      .replace(/\s+/g, ' ').trim().replace(/^["'“‘「]+|["'”’」]+$/g, '');
+    if (!text){ toast('대체 텍스트를 받지 못했습니다. 다시 눌러주세요'); return; }
+    if (!force && b.alt) return;                       /* 그 사이 직접 쓴 글은 지키기 */
+    flushHistory();
+    b.alt = text;
+    updateChecks(); scheduleSave();
+    toast('대체 텍스트를 작성했습니다');
+  } catch(err){
+    if (!A) toast('AI 도구를 불러오지 못했습니다. 인터넷 연결을 확인해 주세요');
+    else if (err instanceof A.AuthenticationError) toast('API 키가 올바르지 않습니다. 왼쪽 AI 대체 텍스트에서 다시 넣어주세요');
+    else if (err instanceof A.PermissionDeniedError) toast('이 API 키로는 쓸 수 없습니다 (권한·결제 확인)');
+    else if (err instanceof A.RateLimitError) toast('요청이 많습니다. 잠시 뒤 다시 눌러주세요');
+    else if (err instanceof A.BadRequestError) toast(hasImage ? '이미지를 불러오지 못했습니다. 이미지 주소를 확인해 주세요' : '요청을 처리하지 못했습니다');
+    else if (err instanceof A.InternalServerError) toast('AI 서버가 잠시 바쁩니다. 다시 눌러주세요');
+    else if (err instanceof A.APIConnectionError) toast('AI 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요');
+    else if (err instanceof A.APIError) toast('대체 텍스트를 쓰지 못했습니다 (' + (err.status || '오류') + ')');
+    else toast('대체 텍스트를 쓰지 못했습니다');
+  } finally {
+    altBusy.delete(b.id); refreshAltUI(b);
+  }
+}
 
 /* ==================================================================
    발행 전 점검
@@ -5839,6 +6034,7 @@ function boot(){
   canAutosave = testStorage();
   state = loadLocal() || blankDoc();
   syncMetaFields(); syncDesignFields(); drawPool(); render();
+  syncAiPanel();
   resetHistory();
   const first = EDITOR.querySelector('.bd');
   if (first) first.focus();
