@@ -243,8 +243,8 @@ body.col-resizing .bd{pointer-events:none}
 .ico-btn:hover{background:rgba(0,0,0,.06)}
 
 /* 토글 — summary 는 클릭을 가로채므로 편집 화면에서는 쓰지 않습니다 */
-.tg-head{display:flex;align-items:flex-start;gap:9px}
-.tg-arw{flex:0 0 22px;height:26px;border:0;background:transparent;cursor:pointer;color:#9aa4b0;font-size:11px;padding:0;border-radius:5px}
+.tg-head{display:flex;align-items:flex-start;gap:0}
+.tg-arw{flex:0 0 22px;height:26px;border:0;background:transparent;cursor:pointer;color:#9aa4b0;font-size:11px;padding:0 0 0 1px;border-radius:5px;text-align:left}
 .tg-arw:hover{background:#eef1f5;color:var(--ink)}
 .tg-title{flex:1;min-width:0}
 
@@ -885,9 +885,12 @@ function innerTextStyle(d){
 function toggleTitleStyle(d){
   return {'font-family':FONT,'font-size':fluid(Math.max(15,d.bodySize),0.9),'font-weight':700,'color':d.headColor,'line-height':1.5,'cursor':'pointer'};
 }
+/* 발행본의 토글 화살표(브라우저 기본 표시)가 차지하는 폭 — 제목 글자 크기의 약 1.06배.
+   안쪽 내용을 이만큼 들여써서 제목 글자 시작점에 맞춥니다 (노션과 같은 모양). */
+function toggleIndent(d){ return Math.round(Math.max(15, d.bodySize) * 1.06); }
 function toggleBodyStyle(d){
-  /* 안쪽 블록이 각자 글자 스타일을 가지므로 껍데기는 여백만 담당합니다 */
-  return {'margin':'12px 0 0'};
+  /* 안쪽 블록이 각자 글자 스타일을 가지므로 껍데기는 여백·들여쓰기만 담당합니다 */
+  return {'margin':'12px 0 0', 'padding-left': toggleIndent(d) + 'px'};
 }
 const BTN_SIZE = {sm:{p:'12px 24px', f:15}, md:{p:'16px 32px', f:16}, lg:{p:'19px 40px', f:18}};
 function btnStyle(b, d){
@@ -1581,6 +1584,7 @@ function renderBlock(b, d, nested){
     head.className = 'tg-head';
     const arw = document.createElement('button');
     arw.className = 'tg-arw';
+    arw.style.flexBasis = toggleIndent(d) + 'px';      /* 발행본 화살표 폭과 같게 — 제목 시작점이 맞습니다 */
     arw.dataset.a = 'tgfold';
     arw.textContent = b.open === false ? '▶' : '▼';
     arw.title = b.open === false ? '펼치기' : '접기';
@@ -1904,6 +1908,8 @@ function restyle(){
       if (box) box.setAttribute('style', css(blockStyle(b,d)));
       const t = w.querySelector(':scope > .tg > .tg-head > .bd[data-f="title"]');
       if (t) t.setAttribute('style', css(toggleTitleStyle(d)));
+      const aw = w.querySelector(':scope > .tg > .tg-head > .tg-arw');
+      if (aw) aw.style.flexBasis = toggleIndent(d) + 'px';
       const body = w.querySelector(':scope > .tg > .tg-body');
       if (body){
         body.setAttribute('style', css(toggleBodyStyle(d)));
