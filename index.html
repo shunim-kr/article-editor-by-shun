@@ -746,7 +746,7 @@ function newBlock(type, extra){
     for (let i = 0; i < n; i++) b.children.push(newBlock('col'));
   }
   if (type==='image')   Object.assign(b, {mode:'placeholder', url:'', name:'', alt:'', caption:'', width:100, round:false});
-  if (type==='button')  Object.assign(b, {text:'문의하기', href:'', shape:'round', bg:null, fg:'#FFFFFF', size:'md', full:false, align:'center'});
+  if (type==='button')  Object.assign(b, {text:'문의하기', href:'', blank:true, shape:'round', bg:null, fg:'#FFFFFF', size:'md', full:false, align:'center'});
   if (type==='youtube') Object.assign(b, {url:''});
   if (type==='space')   Object.assign(b, {h:32});
   if (type==='table')   Object.assign(b, {rows:[tblRow(3), tblRow(3), tblRow(3)], hRow:true, hCol:false,
@@ -1150,7 +1150,7 @@ function walkInline(node, d, ctxBold){
     if (tag === 'A'){
       let href = n.getAttribute('href') || '';
       if (href && !/^(https?:|mailto:|tel:|#|\/)/i.test(href)) href = 'https://' + href;
-      out += '<a href="'+esc(href)+'" style="'+css({color:'inherit','text-decoration':'underline'})+'">'+inner+'</a>';
+      out += '<a href="'+esc(href)+'"'+linkTarget(href, n.getAttribute('data-tab') !== 'self')+' style="'+css({color:'inherit','text-decoration':'underline'})+'">'+inner+'</a>';
       return;
     }
 
@@ -1196,6 +1196,12 @@ function normHref(h){
   if (/^\/\//.test(url)) return 'https:' + url;      /* //www… 는 file:// 에서 열면 깨집니다 */
   if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url = 'https://' + url;
   return url;
+}
+/* 링크를 여는 곳 — 기본은 새 탭. 현재 탭을 고른 링크는 _self 로 남겨 다시 불러올 때도 알 수 있게 합니다.
+   (아임웹 발행본에 target="_blank" 가 그대로 남는 것 확인) 메일·전화·글 안 이동은 손대지 않습니다. */
+function linkTarget(href, blank){
+  if (!href || /^(mailto:|tel:|#)/i.test(href)) return '';
+  return blank ? ' target="_blank" rel="noopener noreferrer"' : ' target="_self"';
 }
 /* watch?v= · youtu.be · embed · shorts · live · nocookie · 썸네일 주소까지 */
 function ytId(url){
@@ -1330,7 +1336,7 @@ function exportBlock(b, d){
     case 'button': {
       if (!b.text) return '';
       const href = normHref(b.href);
-      const a = '<a href="'+esc(href)+'" style="'+S(btnStyle(b,d))+'">'+esc(b.text)+'</a>';
+      const a = '<a href="'+esc(href)+'"'+linkTarget(href, b.blank !== false)+' style="'+S(btnStyle(b,d))+'">'+esc(b.text)+'</a>';
       return '<div style="'+S({'text-align': b.full ? 'left' : b.align, margin:'32px 0'})+'">\n'+a+'\n</div>';
     }
     case 'youtube': {
@@ -1917,6 +1923,7 @@ function inspector(b){
   if (b.type === 'button'){
     h += fld('버튼 문구', txt('text', b.text, '문의하기'));
     h += linkField('링크', 'href', b.href, 'sweetspot.co.kr/contact', '주소를 넣으면 아래에 실제 링크가 보이고 [열어보기]로 확인할 수 있습니다');
+    h += fld('누르면', seg('blank', b.blank !== false, [[true,'새 탭에서 열기'],[false,'지금 탭에서 이동']]));
     h += '<div class="g3">'+
          fld('모양', seg('shape', b.shape, [['square','사각'],['round','라운드'],['pill','캡슐']]))+
          fld('크기', seg('size', b.size, [['sm','소'],['md','중'],['lg','대']]))+
@@ -4831,18 +4838,34 @@ function askLink(){
   if (!s.rangeCount || s.isCollapsed) return;
   selRange = s.getRangeAt(0).cloneRange();
   const picked = s.toString();
+  /* 이미 링크가 걸린 글자면 그 주소와 여는 방식을 채워 둡니다 */
+  let n = selRange.startContainer;
+  if (n.nodeType === 3) n = n.parentNode;
+  const cur = n && n.closest ? n.closest('a[href]') : null;
+  const curBlank = !cur || cur.getAttribute('data-tab') !== 'self';
   openModal({
-    title:'링크 삽입',
-    body:'<p class="d">선택한 글자 — <b>'+esc(picked)+'</b></p><input type="text" id="lkUrl" placeholder="sweetspot.co.kr/contact  또는  https://...">',
+    title: cur ? '링크 수정' : '링크 삽입',
+    body:'<p class="d">선택한 글자 — <b>'+esc(picked)+'</b></p><input type="text" id="lkUrl" placeholder="sweetspot.co.kr/contact  또는  https://..." value="'+esc(cur ? cur.getAttribute('href') : '')+'">'+
+      '<label style="display:flex;align-items:center;gap:7px;margin-top:12px;font-size:13px;cursor:pointer"><input type="checkbox" id="lkBlank"'+(curBlank?' checked':'')+'> 새 탭에서 열기</label>',
     buttons:[{label:'취소'},{label:'링크 걸기', pri:true, act:applyLink}],
     onOpen:function(m){
-      const i = $('#lkUrl', m); i.focus();
-      i.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.isComposing){ if (applyLink(m) !== false) closeModal(); } });
+      const i = $('#lkUrl', m); i.focus(); i.select();
+      /* Enter 를 막지 않으면 본문으로 넘어간 선택 위에서 줄바꿈이 일어나 링크 건 글자가 지워집니다 */
+      i.addEventListener('keydown', function(e){ if (e.key === 'Enter' && !e.isComposing){ e.preventDefault(); if (applyLink(m) !== false) closeModal(); } });
     }
+  });
+}
+/* 새로 걸린 링크를 표시용 임시 주소로 만든 뒤, 진짜 주소와 여는 방식을 붙입니다 */
+const LINK_TMP = 'https://link-pending.invalid/';
+function finishLinks(root, url, blank){
+  $$('a[href="'+LINK_TMP+'"]', root).forEach(function(a){
+    a.setAttribute('href', url);
+    if (blank) a.removeAttribute('data-tab'); else a.setAttribute('data-tab', 'self');
   });
 }
 function applyLink(m){
   const inp = $('#lkUrl', m || OV);
+  const blank = $('#lkBlank', m || OV).checked;
   let url = (inp.value||'').trim();
   if (!url) return false;
   if (!/^(https?:|mailto:|tel:|#|\/)/i.test(url)) url = 'https://' + url;
@@ -4850,8 +4873,15 @@ function applyLink(m){
   s.removeAllRanges();
   if (selRange) s.addRange(selRange);
   const cs = crossSel();
-  if (cs){ crossApply(cs, function(){ document.execCommand('createLink', false, url); }); return; }
-  document.execCommand('createLink', false, url);
+  if (cs){
+    crossApply(cs, function(){
+      document.execCommand('createLink', false, LINK_TMP);
+      finishLinks(document.activeElement || EDITOR, url, blank);
+    });
+    return;
+  }
+  document.execCommand('createLink', false, LINK_TMP);
+  finishLinks(EDITOR, url, blank);
   syncCur();
 }
 
@@ -5264,7 +5294,8 @@ function impInline(node){
     if (!inner) return;
     const cs = n.getAttribute('style') || '';
     if (tag === 'A'){
-      out += '<a href="'+esc(n.getAttribute('href')||'')+'">'+inner+'</a>';
+      const self = (n.getAttribute('target')||'').toLowerCase() === '_self';
+      out += '<a href="'+esc(n.getAttribute('href')||'')+'"'+(self ? ' data-tab="self"' : '')+'>'+inner+'</a>';
       return;
     }
     const bold = tag==='B' || tag==='STRONG' || /font-weight\s*:\s*(bold|[6-9]00)/i.test(cs);
@@ -5317,6 +5348,7 @@ function impButton(a, wrap){
   const b = newBlock('button');
   b.text = (a.textContent || '').trim();
   b.href = a.getAttribute('href') || '';
+  b.blank = (a.getAttribute('target')||'').toLowerCase() !== '_self';
   const mbg = st.match(/background-color\s*:\s*([^;]+)/i); if (mbg) b.bg = toHex(mbg[1]);
   const mfg = st.match(/(?:^|;)\s*color\s*:\s*([^;]+)/i);  if (mfg) b.fg = toHex(mfg[1]);
   const mr  = st.match(/border-radius\s*:\s*([\d.]+)/i);
